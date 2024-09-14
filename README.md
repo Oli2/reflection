@@ -1,2 +1,2 @@
 # reflection
-experimentic with LLM ReAct Reflection
+Experiments with LLM ReAct Reflection
