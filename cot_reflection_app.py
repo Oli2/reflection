@@ -1,16 +1,34 @@
 import gradio as gr
 import os
-from cot_reflection_v1 import cot_reflection
+import re
+from cot_reflection import cot_reflection, cot_prompt
 
-def process_question(question, full_response):
-    system_prompt = """You are a legal assistant. Provide a detailed and accurate answer to the following question."""
-    result = cot_reflection(system_prompt=system_prompt, question=question, return_full_response=full_response)
-    return result
+def process_question(user_prompt):
+    system_prompt = "You are a legal assistant. Provide a detailed and accurate answer to the following question."
+    try:
+        result = cot_reflection(system_prompt=system_prompt, question=user_prompt, return_full_response=True, cot_prompt=cot_prompt)
+        
+        # Extract content for each section
+        thinking_match = re.search(r'<thinking>(.*?)</thinking>', result, re.DOTALL)
+        reflection_match = re.search(r'<reflection>(.*?)</reflection>', result, re.DOTALL)
+        output_match = re.search(r'<output>(.*?)</output>', result, re.DOTALL)
+        
+        thinking = thinking_match.group(1).strip() if thinking_match else "No thinking process provided."
+        reflection = reflection_match.group(1).strip() if reflection_match else "No reflection process provided."
+        output = output_match.group(1).strip() if output_match else "No final output provided."
+        
+        # Assume initial_response is the same as output for this implementation
+        initial_response = output
+
+        return user_prompt, initial_response, thinking, reflection, output
+    except Exception as e:
+        return user_prompt, f"An error occurred: {str(e)}", "", "", ""
 
 # Get the absolute path to the logo file
 current_dir = os.path.dirname(os.path.abspath(__file__))
 logo_path = os.path.join(current_dir, "images", "Linklaters.svg.png")
 
+# Gradio interface
 with gr.Blocks() as iface:
     with gr.Column(scale=1):
         gr.Image(logo_path, show_label=False, height=70)
@@ -18,25 +36,33 @@ with gr.Blocks() as iface:
     # Add empty space
     gr.Markdown("<br><br>")
     
-    gr.Markdown("<h1 style='text-align: center;'>MVP for Chain of Thought Reflection Assistant</h1>")
+    gr.Markdown("""
+    <h1 style='text-align: center; margin-bottom: 0;'>MVP for Chain of Thought Reflection Assistant</h1>
+    <p style='text-align: center; font-style: italic; margin-top: 5px; font-size: 1.2em;'>powered by Linklaters GenAI Platform</p>
+    """)
     
     with gr.Row():
         with gr.Column():
             with gr.Column(scale=1, min_width=600):
-                question = gr.Textbox(
+                user_prompt = gr.Textbox(
                     lines=2, 
                     label="",  # Set an empty label
                     placeholder="Ask a question and get a detailed answer using Chain of Thought reflection powered by Linklaters GenAI Platform."
                 )
-            full_response = gr.Checkbox(label="Show full response (including chain-of-thought)")
             submit_btn = gr.Button("Submit")
-    output = gr.Markdown()
+    
+    with gr.Row():
+        user_prompt_output = gr.Textbox(label="1. User Prompt")
+        initial_response_output = gr.Textbox(label="2. Initial Response")
+        thinking_output = gr.Textbox(label="3. Thinking")
+        reflection_output = gr.Textbox(label="4. Reflection")
+        final_output = gr.Textbox(label="5. Output")
     
     submit_btn.click(
         fn=process_question,
-        inputs=[question, full_response],
-        outputs=output
+        inputs=user_prompt,
+        outputs=[user_prompt_output, initial_response_output, thinking_output, reflection_output, final_output]
     )
 
 if __name__ == "__main__":
-    iface.launch(share=False)
+    iface.launch()
