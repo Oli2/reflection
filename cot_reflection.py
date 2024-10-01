@@ -6,33 +6,39 @@ from reflection_gemini import query_gemini_pro
 
 logger = logging.getLogger(__name__)
 
-def cot_reflection(system_prompt, question, return_full_response: bool=False):
+system_prompt = """You are a legal assistant. Provide a detailed and accurate answer to the following question."""
+
+cot_prompt = """You are an AI assistant that uses a Chain of Thought (CoT) approach with reflection to answer queries. Follow these steps:
+
+    1. Think through the problem step by step within the <thinking> tags.
+    2. Reflect on your thinking to check for any errors or improvements within the <reflection> tags.
+    3. Make any necessary adjustments based on your reflection.
+    4. Provide your final, concise answer within the <output> tags.
+
+    Important: The <thinking> and <reflection> sections are for your internal reasoning process only. 
+    Do not include any part of the final answer in these sections. 
+    The actual response to the query must be entirely contained within the <output> tags.
+
+    Use the following format for your response:
+    <thinking>
+    [Your step-by-step reasoning goes here. This is your internal thought process, not the final answer.]
+    <reflection>
+    [Your reflection on your reasoning, checking for errors or improvements]
+    </reflection>
+    [Any adjustments to your thinking based on your reflection]
+    </thinking>
+    <output>
+    [Your final, concise answer to the query. This is the only part that will be shown to the user.]
+    </output>
+"""
+
+def cot_reflection(system_prompt, cot_prompt, question, return_full_response: bool=False):
     cot_prompt = f"""
         {system_prompt}
 
-        You are an AI assistant that uses a Chain of Thought (CoT) approach with reflection to answer queries. Follow these steps:
+        {cot_prompt}
+    """
 
-        1. Think through the problem step by step within the <thinking> tags.
-        2. Reflect on your thinking to check for any errors or improvements within the <reflection> tags.
-        3. Make any necessary adjustments based on your reflection.
-        4. Provide your final, concise answer within the <output> tags.
-
-        Important: The <thinking> and <reflection> sections are for your internal reasoning process only. 
-        Do not include any part of the final answer in these sections. 
-        The actual response to the query must be entirely contained within the <output> tags.
-
-        Use the following format for your response:
-        <thinking>
-        [Your step-by-step reasoning goes here. This is your internal thought process, not the final answer.]
-        <reflection>
-        [Your reflection on your reasoning, checking for errors or improvements]
-        </reflection>
-        [Any adjustments to your thinking based on your reflection]
-        </thinking>
-        <output>
-        [Your final, concise answer to the query. This is the only part that will be shown to the user.]
-        </output>
-        """
     combined_prompt = f"{cot_prompt}\n\nQuestion: {question}"
     # Make the API call
     MODEL_ID = "gemini-1.5-pro"
@@ -75,10 +81,10 @@ if __name__ == "__main__":
     parser.add_argument('--credentials', type=str, default="/Users/tomc/service_acccount_key.json", help='Path to GCP service account JSON key file')
     parser.add_argument('--fullresponse', action='store_true', help='Return full response including chain-of-thought')
     args = parser.parse_args()
-    system_prompt = """You are a legal assistant. Provide a detailed and accurate answer to the following question."""
-    
+
+     
     # print(f"args.question: {args.question}")
-    result = cot_reflection(system_prompt=system_prompt, question=args.question, return_full_response= args.fullresponse)
+    result = cot_reflection(system_prompt=system_prompt, cot_prompt=cot_prompt, question=args.question, return_full_response=args.fullresponse)
     if result is not None:
         print(f"{'Full Response' if args.fullresponse else 'Final Answer'}:")
         print(result)
