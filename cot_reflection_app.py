@@ -1,10 +1,12 @@
 import gradio as gr
 import os
 import re
-from cot_reflection import cot_reflection, cot_prompt
+from cot_reflection import cot_reflection, cot_prompt as default_cot_prompt
 
-def process_question(user_prompt):
-    system_prompt = "You are a legal assistant. Provide a detailed and accurate answer to the following question."
+# Define the default system prompt
+default_system_prompt = "You are a legal assistant. Provide a detailed and accurate answer to the following question."
+
+def process_question(user_prompt, system_prompt, cot_prompt):
     try:
         result = cot_reflection(system_prompt=system_prompt, question=user_prompt, return_full_response=True, cot_prompt=cot_prompt)
         
@@ -20,9 +22,9 @@ def process_question(user_prompt):
         # Assume initial_response is the same as output for this implementation
         initial_response = output
 
-        return user_prompt, initial_response, thinking, reflection, output
+        return user_prompt, initial_response, thinking, reflection, output, system_prompt, cot_prompt
     except Exception as e:
-        return user_prompt, f"An error occurred: {str(e)}", "", "", ""
+        return user_prompt, f"An error occurred: {str(e)}", "", "", "", system_prompt, cot_prompt
 
 # Get the absolute path to the logo file
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -49,6 +51,16 @@ with gr.Blocks() as iface:
                     label="",  # Set an empty label
                     placeholder="Ask a question and get a detailed answer using Chain of Thought reflection powered by Linklaters GenAI Platform."
                 )
+                system_prompt = gr.Textbox(
+                    lines=2,
+                    label="System Prompt",
+                    value=default_system_prompt
+                )
+                cot_prompt = gr.Textbox(
+                    lines=4,
+                    label="Chain of Thought Prompt",
+                    value=default_cot_prompt
+                )
             submit_btn = gr.Button("Submit")
     
     with gr.Row():
@@ -60,8 +72,8 @@ with gr.Blocks() as iface:
     
     submit_btn.click(
         fn=process_question,
-        inputs=user_prompt,
-        outputs=[user_prompt_output, initial_response_output, thinking_output, reflection_output, final_output]
+        inputs=[user_prompt, system_prompt, cot_prompt],
+        outputs=[user_prompt_output, initial_response_output, thinking_output, reflection_output, final_output, system_prompt, cot_prompt]
     )
 
 if __name__ == "__main__":
