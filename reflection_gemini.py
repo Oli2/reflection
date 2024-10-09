@@ -37,7 +37,7 @@ def read_docx(file_path):
 
 
 # Function to query Gemini Pro
-def query_gemini_pro(model, prompt: str):
+def query_gemini_pro(model, prompt: str, return_full_response: bool = False):
     try:
         response = model.generate_content(contents=[prompt])
         return response.text
@@ -93,55 +93,51 @@ Revised Answer:
 """
 
 def main(docx_path, question, project, location, credentials_path):
-    # Initialize Vertex AI and get Gemini Pro model
-    MODEL_ID = "gemini-1.5-pro"
-    model = GenerativeModel(MODEL_ID)
-    
-    # Read the document content
-    document_content = read_docx(docx_path)
-    
-    # Generate Initial Answer
-    initial_prompt = INITIAL_PROMPT_TEMPLATE.format(
-        document_content=document_content,
-        question=question
-    )
-    print("Generating Initial Answer...")
-    initial_answer = query_gemini_pro(model, initial_prompt)
-    if initial_answer is None:
-        print("Failed to generate initial answer.")
-        return
-    
-    # Generate Reflection
-    reflection_prompt = REFLECTION_PROMPT_TEMPLATE.format(
-        document_content=document_content,
-        question=question,
-        initial_answer=initial_answer
-    )
-    print("Generating Feedback...")
-    feedback = query_gemini_pro(model, reflection_prompt)
-    if feedback is None:
-        print("Failed to generate feedback.")
-        return
-    
-    # Generate Revised Answer
-    refinement_prompt = REFINEMENT_PROMPT_TEMPLATE.format(
-        document_content=document_content,
-        question=question,
-        feedback=feedback,
-        initial_answer=initial_answer
-    )
-    print("Generating Revised Answer...")
-    revised_answer = query_gemini_pro(model, refinement_prompt)
-    if revised_answer is None:
-        print("Failed to generate revised answer.")
-        return
-    
-    # Output Results
-    print("\n=== Analysis Results ===")
-    print("\nQuestion:", question)
-    print("\n--- Initial Answer ---\n", initial_answer)
-    print("\n--- Feedback ---\n", feedback)
-    print("\n--- Revised Answer ---\n", revised_answer)
+    try:
+        # Initialize Vertex AI and get Gemini Pro model
+        MODEL_ID = "gemini-1.5-pro"
+        model = GenerativeModel(MODEL_ID)
+        
+        # Read the document content
+        document_content = read_docx(docx_path)
+        
+        # Generate Initial Answer
+        initial_prompt = INITIAL_PROMPT_TEMPLATE.format(
+            document_content=document_content,
+            question=question
+        )
+        print("Generating Initial Answer...")
+        initial_answer = query_gemini_pro(model, initial_prompt)
+        if initial_answer is None:
+            return "Failed to generate initial answer.", "", ""
+        
+        # Generate Reflection
+        reflection_prompt = REFLECTION_PROMPT_TEMPLATE.format(
+            document_content=document_content,
+            question=question,
+            initial_answer=initial_answer
+        )
+        print("Generating Feedback...")
+        feedback = query_gemini_pro(model, reflection_prompt)
+        if feedback is None:
+            return initial_answer, "Failed to generate feedback.", ""
+        
+        # Generate Revised Answer
+        refinement_prompt = REFINEMENT_PROMPT_TEMPLATE.format(
+            document_content=document_content,
+            question=question,
+            feedback=feedback,
+            initial_answer=initial_answer
+        )
+        print("Generating Revised Answer...")
+        revised_answer = query_gemini_pro(model, refinement_prompt)
+        if revised_answer is None:
+            return initial_answer, feedback, "Failed to generate revised answer."
+        
+        return initial_answer, feedback, revised_answer
+    except Exception as e:
+        print(f"An error occurred in main: {str(e)}")
+        return f"An error occurred: {str(e)}", "", ""
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Analyze a Word document using AI reflection with Vertex AI Gemini Pro.")
@@ -154,4 +150,11 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     
-    main(args.read, args.question, args.project, args.location, args.credentials)
+    initial_answer, feedback, revised_answer = main(args.read, args.question, args.project, args.location, args.credentials)
+    
+    # Output Results
+    print("\n=== Analysis Results ===")
+    print("\nQuestion:", args.question)
+    print("\n--- Initial Answer ---\n", initial_answer)
+    print("\n--- Feedback ---\n", feedback)
+    print("\n--- Revised Answer ---\n", revised_answer)
