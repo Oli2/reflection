@@ -1,28 +1,37 @@
 import gradio as gr
 import os
 import re
-from cot_reflection import cot_reflection, cot_prompt as default_cot_prompt
-
-# Define the default system prompt
-default_system_prompt = "You are a legal assistant. Provide a detailed and accurate answer to the following question."
+from cot_reflection import cot_reflection, cot_prompt as default_cot_prompt, system_prompt as default_system_prompt
+from vertexai.generative_models import GenerativeModel
+from reflection_gemini import query_gemini_pro
 
 def process_question(user_prompt, system_prompt, cot_prompt):
     try:
-        result = cot_reflection(system_prompt=system_prompt, question=user_prompt, return_full_response=True, cot_prompt=cot_prompt)
-        
-        # Extract content for each section
-        thinking_match = re.search(r'<thinking>(.*?)</thinking>', result, re.DOTALL)
-        reflection_match = re.search(r'<reflection>(.*?)</reflection>', result, re.DOTALL)
-        output_match = re.search(r'<output>(.*?)</output>', result, re.DOTALL)
-        
-        thinking = thinking_match.group(1).strip() if thinking_match else "No thinking process provided."
-        reflection = reflection_match.group(1).strip() if reflection_match else "No reflection process provided."
-        output = output_match.group(1).strip() if output_match else "No final output provided."
-        
-        # Assume initial_response is the same as output for this implementation
-        initial_response = output
+        # Get thinking, reflection, and output from cot_reflection
+        thinking, reflection, output = cot_reflection(
+            system_prompt=system_prompt,
+            cot_prompt=cot_prompt,
+            question=user_prompt
+        )
+        print(f"thinking: {thinking}/n")
+        print(f"reflection: {reflection}/n")
+        print(f"output: {output}/n")
+        # Extract the actual thinking content
+        thinking_match = re.search(r'<thinking>(.*?)</thinking>', thinking, re.DOTALL)
+        actual_thinking = thinking_match.group(1).strip() if thinking_match else thinking
 
-        return user_prompt, initial_response, thinking, reflection, output, system_prompt, cot_prompt
+        # Get the initial response (direct answer to the question)
+        initial_response_prompt = f"{system_prompt}\n\nQuestion: {user_prompt}\n\nProvide a concise answer to this question without any explanation or reasoning."
+        initial_response = query_gemini_pro(prompt=initial_response_prompt, model=GenerativeModel("gemini-1.5-pro"), return_full_response=False)
+
+        
+        # If any section is empty, provide a default message
+        initial_response = initial_response if initial_response else "No initial response provided."
+        actual_thinking = actual_thinking if actual_thinking else "No thinking process provided."
+        reflection = reflection if reflection else "No reflection process provided."
+        output = output if output else "No final output provided."
+
+        return user_prompt, initial_response, actual_thinking, reflection, output, system_prompt, cot_prompt
     except Exception as e:
         return user_prompt, f"An error occurred: {str(e)}", "", "", "", system_prompt, cot_prompt
 
@@ -68,7 +77,7 @@ with gr.Blocks() as iface:
         initial_response_output = gr.Textbox(label="2. Initial Response")
         thinking_output = gr.Textbox(label="3. Thinking")
         reflection_output = gr.Textbox(label="4. Reflection")
-        final_output = gr.Textbox(label="5. Output")
+        final_output = gr.Textbox(label="5. Final Output")
     
     submit_btn.click(
         fn=process_question,
@@ -77,4 +86,4 @@ with gr.Blocks() as iface:
     )
 
 if __name__ == "__main__":
-    iface.launch()
+    iface.launch(share=False)
