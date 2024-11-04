@@ -3,154 +3,122 @@ warnings.filterwarnings("ignore")
 
 from docx import Document
 import argparse
+import logging
+from abc import ABC, abstractmethod
 from google.cloud import aiplatform
 from vertexai.language_models import TextGenerationModel
 from google.oauth2 import service_account
 from google.api_core.exceptions import GoogleAPICallError, InvalidArgument
-from vertexai.generative_models import (
-    GenerationConfig,
-    GenerativeModel,
-    HarmBlockThreshold,
-    HarmCategory,
-    Part,
-)
+from vertexai.generative_models import GenerativeModel
+import yaml
 
-# Function to read docx file
-def read_docx(file_path):
-    doc = Document(file_path)
-    full_text = []
-    for para in doc.paragraphs:
-        full_text.append(para.text)
-    return '\n'.join(full_text)
+# Set up logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
-# Initialize Vertex AI and get Gemini Pro model
-# def initialize_vertex_ai(project: str, location: str, credentials_path: str = None):
-#     if credentials_path:
-#         credentials = service_account.Credentials.from_service_account_file(credentials_path)
-#         aiplatform.init(project=project, location=location, credentials=credentials)
-#     else:
-#         aiplatform.init(project=project, location=location)
-#     return TextGenerationModel.from_pretrained("gemini-1.5-pro")
+# Load prompt templates from YAML file
+with open('prompt_templates.yaml', 'r') as file:
+    PROMPT_TEMPLATES = yaml.safe_load(file)
 
+class ModelInterface(ABC):
+    @abstractmethod
+    def query(self, prompt: str) -> str:
+        pass
 
+class GeminiInterface(ModelInterface):
+    def __init__(self, model_name: str):
+        self.model = GenerativeModel(model_name)
 
+    def query(self, prompt: str) -> str:
+        try:
+            response = self.model.generate_content(contents=[prompt])
+            return response.text
+        except (GoogleAPICallError, InvalidArgument) as e:
+            logger.error(f"Gemini API call error: {e}")
+            return None
 
+class TextGenerationInterface(ModelInterface):
+    def __init__(self, model_name: str):
+        self.model = TextGenerationModel.from_pretrained(model_name)
 
-# Function to query Gemini Pro
-def query_gemini_pro(model, prompt: str, return_full_response: bool = False):
+    def query(self, prompt: str) -> str:
+        try:
+            response = self.model.predict(prompt=prompt, max_output_tokens=1024)
+            return response.text
+        except Exception as e:
+            logger.error(f"Text Generation API call error: {e}")
+            return None
+
+def create_model_interface(model_name: str) -> ModelInterface:
     try:
-        response = model.generate_content(contents=[prompt])
-        return response.text
-    except (GoogleAPICallError, InvalidArgument) as e:
-        print(f"API call error: {e}")
-        return None
+        if 'gemini' in model_name.lower():
+            return GeminiInterface(model_name)
+        else:
+            return TextGenerationInterface(model_name)
+    except Exception as e:
+        logger.warning(f"Failed to create interface for {model_name}: {e}")
+        logger.info("Falling back to Gemini-1.5-pro")
+        return GeminiInterface('gemini-1.5-pro')
 
-# Define prompts
-INITIAL_PROMPT_TEMPLATE = """
-You are a legal assistant. Provide a detailed and accurate answer to the following question based on the content of the given document.
-
-Document Content:
-{document_content}
-
-Question: {question}
-
-Answer:
-"""
-
-REFLECTION_PROMPT_TEMPLATE = """
-You are a senior legal expert reviewing the assistant's answer for correctness, completeness, and clarity.
-
-Document Content:
-{document_content}
-
-Question: {question}
-
-Assistant's Answer:
-{initial_answer}
-
-Provide specific feedback on any inaccuracies, omissions, or areas needing improvement.
-
-Feedback:
-"""
-
-REFINEMENT_PROMPT_TEMPLATE = """
-You are a legal assistant who has received feedback from a senior legal expert.
-
-Document Content:
-{document_content}
-
-Question: {question}
-
-Feedback:
-{feedback}
-
-Based on this feedback, revise your original answer to improve its accuracy, completeness, and clarity.
-
-Original Answer:
-{initial_answer}
-
-Revised Answer:
-"""
-
-def main(docx_path, question, project, location, credentials_path):
+def read_docx(file_path: str) -> str:
     try:
-        # Initialize Vertex AI and get Gemini Pro model
-        MODEL_ID = "gemini-1.5-pro"
-        model = GenerativeModel(MODEL_ID)
-        
-        # Read the document content
+        doc = Document(file_path)
+        return '\n'.join(para.text for para in doc.paragraphs)
+    except Exception as e:
+        logger.error(f"Error reading document: {e}")
+        raise
+
+def main(docx_path: str, question: str, model_name: str):
+    try:
+        model_interface = create_model_interface(model_name)
         document_content = read_docx(docx_path)
-        
-        # Generate Initial Answer
-        initial_prompt = INITIAL_PROMPT_TEMPLATE.format(
+
+        initial_prompt = PROMPT_TEMPLATES['INITIAL_PROMPT_TEMPLATE'].format(
             document_content=document_content,
             question=question
         )
-        print("Generating Initial Answer...")
-        initial_answer = query_gemini_pro(model, initial_prompt)
+        logger.info("Generating Initial Answer...")
+        initial_answer = model_interface.query(initial_prompt)
         if initial_answer is None:
             return "Failed to generate initial answer.", "", ""
-        
-        # Generate Reflection
-        reflection_prompt = REFLECTION_PROMPT_TEMPLATE.format(
+
+        reflection_prompt = PROMPT_TEMPLATES['REFLECTION_PROMPT_TEMPLATE'].format(
             document_content=document_content,
             question=question,
             initial_answer=initial_answer
         )
-        print("Generating Feedback...")
-        feedback = query_gemini_pro(model, reflection_prompt)
+        logger.info("Generating Feedback...")
+        feedback = model_interface.query(reflection_prompt)
         if feedback is None:
             return initial_answer, "Failed to generate feedback.", ""
-        
-        # Generate Revised Answer
-        refinement_prompt = REFINEMENT_PROMPT_TEMPLATE.format(
+
+        refinement_prompt = PROMPT_TEMPLATES['REFINEMENT_PROMPT_TEMPLATE'].format(
             document_content=document_content,
             question=question,
             feedback=feedback,
             initial_answer=initial_answer
         )
-        print("Generating Revised Answer...")
-        revised_answer = query_gemini_pro(model, refinement_prompt)
+        logger.info("Generating Revised Answer...")
+        revised_answer = model_interface.query(refinement_prompt)
         if revised_answer is None:
             return initial_answer, feedback, "Failed to generate revised answer."
-        
+
         return initial_answer, feedback, revised_answer
     except Exception as e:
-        print(f"An error occurred in main: {str(e)}")
+        logger.error(f"An error occurred in main: {str(e)}")
         return f"An error occurred: {str(e)}", "", ""
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Analyze a Word document using AI reflection with Vertex AI Gemini Pro.")
+    parser = argparse.ArgumentParser(description="Analyze a Word document using AI reflection with Vertex AI models.")
     parser.add_argument('--read', type=str, required=True, help='Path to the Word document to analyze')
     parser.add_argument('-q', '--question', type=str, default="Is this document about cooking?", 
                         help='Question to ask about the document')
-    parser.add_argument('--project', type=str, default="genai-sandbox-421407", help='GCP Project ID')
-    parser.add_argument('--location', type=str, default="europe-west2", help='GCP Location')
-    parser.add_argument('--credentials', type=str, default="/Users/tomc/service_acccount_key.json", help='Path to GCP service account JSON key file')
+    parser.add_argument('--model', type=str, choices=['gemini-1.5-pro', 'claude-3-5-sonnet-v2@20241022'], 
+                        default='gemini-1.5-pro', help='Model to use for analysis')
     
     args = parser.parse_args()
     
-    initial_answer, feedback, revised_answer = main(args.read, args.question, args.project, args.location, args.credentials)
+    initial_answer, feedback, revised_answer = main(args.read, args.question, args.model)
     
     # Output Results
     print("\n=== Analysis Results ===")
