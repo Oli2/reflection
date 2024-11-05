@@ -1,37 +1,43 @@
-# Legal Document Analysis with AI Reflection
+# Document Analysis with Chain of Thought Reflection
 
-This project uses AI-powered language models to analyze legal documents, answer questions, and provide refined responses through a process of reflection and refinement.
+A sophisticated document analysis tool that leverages Google's Gemini Pro model to provide intelligent document analysis with chain-of-thought reasoning capabilities.
 
-## Features
+## 🚀 Features
 
-- Reads and analyzes Microsoft Word (.docx) documents
-- Utilizes GPT-4 for initial analysis, reflection, and refinement of answers
-- Implements a three-stage process: initial answer, expert reflection, and answer refinement
-- Command-line interface for easy interaction
+- Document upload support (PDF and DOCX)
+- Chain of Thought (CoT) reasoning
+- Reflection-based analysis
+- Interactive web interface using Gradio
+- Advanced prompt customization
+- Step-by-step reasoning visualization
 
-## Requirements
+## 📋 Prerequisites
 
-- Python 3.11+
-- OpenAI API key
+- Python 3.8+
+- Google Cloud Platform account with Vertex AI API enabled
+- Required Python packages:
+  ```bash
+  pip install -r requirements_gemini.txt
+  ```
 
-## Installation
+## 🛠️ Installation
 
-1. Clone this repository:
-   ```
-   git clone https://github.com/yourusername/legal-document-analysis.git
-   cd legal-document-analysis
-   ```
-
-2. Install the required packages:
-   ```
-   pip install langchain langchain_openai python-docx
-   ```
-
-3. Set up your OpenAI API key as an environment variable:
-   ```
-   export OPENAI_API_KEY='your-api-key-here'
+1. Clone the repository
+   ```bash
+   git clone https://github.com/yourusername/reflection.git
+   cd reflection
    ```
 
-## Usage
+2. Install dependencies
+   ```bash
+   pip install -r requirements_gemini.txt
+   ```
 
-Run the script with the following command:
+3. Set up Google Cloud credentials
+   ```bash
+   export GOOGLE_APPLICATION_CREDENTIALS="path/to/your/credentials.json"
+   ```
+
+## 💻 Usage
+
+Run the application:
