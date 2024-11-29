@@ -1,14 +1,16 @@
 import gradio as gr
 import os
 import re
-from cot_reflection_file import cot_reflection, cot_prompt as default_cot_prompt, system_prompt as default_system_prompt
-from vertexai.generative_models import GenerativeModel
+from cot_reflection_file import (
+    cot_reflection, 
+    cot_prompt as default_cot_prompt, 
+    system_prompt as default_system_prompt,
+    get_model_response,
+    AVAILABLE_MODELS
+)
 from document_utils import read_document
 
-# Initialize the model
-model = GenerativeModel("gemini-1.5-pro")
-
-def process_question(file, user_prompt, system_prompt, cot_prompt):
+def process_question(file, user_prompt, system_prompt, cot_prompt, selected_model):
     try:
         # Read document content if file is provided
         document_content = None
@@ -20,7 +22,8 @@ def process_question(file, user_prompt, system_prompt, cot_prompt):
             system_prompt=system_prompt,
             cot_prompt=cot_prompt,
             question=user_prompt,
-            document_content=document_content
+            document_content=document_content,
+            model_name=selected_model
         )
 
         # Extract the actual thinking content
@@ -30,9 +33,7 @@ def process_question(file, user_prompt, system_prompt, cot_prompt):
         # Get the initial response
         doc_content = f"Document Content:\n{document_content}\n\n" if document_content else ""
         initial_response_prompt = f"{system_prompt}\n\n{doc_content}Question: {user_prompt}\n\nProvide a concise answer to this question without any explanation or reasoning."
-        initial_response = model.generate_content(
-            initial_response_prompt
-        ).text
+        initial_response = get_model_response(selected_model, initial_response_prompt)
 
         # Provide default messages for empty sections
         initial_response = initial_response if initial_response else "No initial response provided."
@@ -63,6 +64,13 @@ with gr.Blocks() as iface:
     with gr.Row():
         with gr.Column():
             with gr.Column(scale=1, min_width=600):
+                model_selector = gr.Dropdown(
+                    choices=list(AVAILABLE_MODELS.keys()),
+                    value="Gemini 1.5 Pro",
+                    label="Select Model",
+                    interactive=True
+                )
+                
                 file_input = gr.File(
                     label="Upload Document (DOCX or PDF)",
                     file_types=[".docx", ".pdf"]
@@ -94,9 +102,9 @@ with gr.Blocks() as iface:
     
     submit_btn.click(
         fn=process_question,
-        inputs=[file_input, user_prompt, system_prompt, cot_prompt],
+        inputs=[file_input, user_prompt, system_prompt, cot_prompt, model_selector],
         outputs=[user_prompt_output, initial_response_output, thinking_output, reflection_output, final_output, system_prompt, cot_prompt]
     )
 
 if __name__ == "__main__":
-    iface.launch(share=True)
+    iface.launch(share=False)
