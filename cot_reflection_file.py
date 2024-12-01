@@ -59,8 +59,24 @@ def cot_reflection(system_prompt, cot_prompt, question, document_content=None, m
 # Default prompts
 system_prompt = """You are a helpful AI assistant. When answering questions, think carefully and break down your reasoning step by step."""
 
-cot_prompt = """Please help me think through this step-by-step:
-1. First, let's understand what's being asked
-2. Then, let's identify the key information needed
-3. Next, let's reason through the solution
-4. Finally, let's verify our logic"""
+cot_prompt = """You are an AI assistant that uses a Chain of Thought (CoT) approach with reflection to answer queries. Follow these steps:
+
+    1. Think through the problem step by step within the <thinking> tags.
+    2. Reflect on your thinking to check for any errors or improvements within the <reflection> tags.
+    3. Make any necessary adjustments based on your reflection.
+    4. Provide your final, concise answer within the <output> tags, taking into account your thinking and reflection.
+
+    Important: The <thinking> and <reflection> sections are for your internal reasoning process. 
+    The actual response to the query must be contained within the <output> tags, but should be informed by your thinking and reflection.
+
+    Use the following format for your response:
+    <thinking>
+    [Your step-by-step reasoning goes here.]
+    </thinking>
+    <reflection>
+    [Your reflection on your reasoning, checking for errors or improvements]
+    </reflection>
+    <output>
+    [Your final, concise answer to the query, informed by your thinking and reflection. This is the part that will be shown to the user.]
+    </output>
+"""
