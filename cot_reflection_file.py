@@ -4,7 +4,8 @@ from anthropic import AnthropicVertex
 
 # Initialize models
 AVAILABLE_MODELS = {
-    "Gemini 1.5 Pro": "gemini-1.5-pro",
+    # "Gemini 1.5 Pro": "gemini-1.5-pro",
+    "Gemini 2.0 Fash": "gemini-2.0-flash-exp",
     "Claude 3.5 Sonnet": "claude-3-5-sonnet@20240620"
 }
 project_id = "genai-sandbox-421407"
