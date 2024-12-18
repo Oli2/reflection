@@ -3,6 +3,7 @@ import os
 import re
 import json
 from datetime import datetime
+from typing import Optional, List, Any, Dict, Tuple
 from cot_reflection_file import (
     cot_reflection, 
     cot_prompt as default_cot_prompt, 
@@ -38,7 +39,9 @@ def process_question(file, user_prompt, system_prompt, cot_prompt, selected_mode
 
         # Get the initial response
         doc_content = f"Document Content:\n{document_content}\n\n" if document_content else ""
-        initial_response_prompt = f"{system_prompt}\n\n{doc_content}Question: {user_prompt}\n\nProvide a concise answer to this question without any explanation or reasoning."
+        initial_response_prompt = (f"{system_prompt}\n\n{doc_content}"
+                                   f"Question: {user_prompt}\n\n"
+                                   "Provide a concise answer to this question without any explanation or reasoning.")
         initial_response = get_model_response(selected_model, initial_response_prompt)
 
         return user_prompt, initial_response, actual_thinking, reflection, output, system_prompt, cot_prompt
@@ -46,158 +49,103 @@ def process_question(file, user_prompt, system_prompt, cot_prompt, selected_mode
         print(f"Process error: {str(e)}")
         return user_prompt, f"An error occurred: {str(e)}", "", "", "", system_prompt, cot_prompt
 
-def save_current_snapshot(snapshot_name, user_prompt, system_prompt, model_name, 
-                         cot_prompt, initial_response, thinking, reflection, 
-                         final_response, tags):
-    try:
-        if not snapshot_name:
-            return "Error: Please provide a snapshot name!", None
-
-        if not user_prompt:
-            return "Error: No prompt to save!", None
-
-        snapshot_data = {
-            'snapshot_name': snapshot_name.strip(),
-            'user_prompt': user_prompt,
-            'system_prompt': system_prompt,
-            'model_name': model_name,
-            'cot_prompt': cot_prompt,
-            'initial_response': initial_response,
-            'thinking': thinking,
-            'reflection': reflection,
-            'final_response': final_response,
-            'tags': tags.strip() if tags else ''
-        }
-
-        save_result = db.save_snapshot(snapshot_data)
-        if "Error" in save_result or "Database error" in save_result:
-            return save_result, None
-
-        return "✓ Snapshot saved successfully!", update_snapshots_table()
-    except Exception as e:
-        print(f"Save error: {str(e)}")
-        return f"Error saving snapshot: {str(e)}", None
-
-def load_selected_snapshot(selected_data):
-    try:
-        if selected_data is None or len(selected_data) == 0:
-            return [None] * 9 + ["Please select a snapshot to load"]
+def load_snapshot_by_id(snapshot_id: str) -> List[Optional[Any]]:
+    """
+    Load a snapshot by ID and update UI components.
+    
+    Args:
+        snapshot_id: ID of the snapshot to load
         
-        snapshot_id = selected_data[0][0]  # Get ID from first selected row
-        snapshot = db.get_snapshot_by_id(snapshot_id)
+    Returns:
+        List of values for Gradio components in correct order
+    """
+    try:
+        if not snapshot_id:
+            return [None] * 9 + ["Please enter a snapshot ID to load"]
         
-        if not snapshot:
+        try:
+            snapshot_id_int = int(snapshot_id)
+        except ValueError:
+            return [None] * 9 + ["Invalid Snapshot ID. Please enter a numeric ID."]
+        
+        # Get snapshot data from database
+        snapshot_data = db.get_snapshot_by_id(snapshot_id_int)
+        
+        if not snapshot_data:
             return [None] * 9 + ["Snapshot not found"]
-        
+            
+        # Extract values from snapshot data
         return [
-            snapshot[1],  # snapshot_name
-            snapshot[2],  # user_prompt
-            snapshot[3],  # system_prompt
-            snapshot[4],  # model_name
-            snapshot[5],  # cot_prompt
-            snapshot[6],  # initial_response
-            snapshot[7],  # thinking
-            snapshot[8],  # reflection
-            snapshot[9],  # final_response
-            "✓ Snapshot loaded successfully"
+            snapshot_data.get("snapshot_name", ""),          # Snapshot name
+            snapshot_data.get("user_prompt", ""),            # User prompt
+            snapshot_data.get("system_prompt", ""),          # System prompt
+            snapshot_data.get("model_name", ""),             # Model name
+            snapshot_data.get("cot_prompt", ""),             # Chain of thought prompt
+            snapshot_data.get("initial_response", ""),       # Initial response
+            snapshot_data.get("thinking", ""),               # Thinking process
+            snapshot_data.get("reflection", ""),             # Reflection
+            snapshot_data.get("final_response", ""),         # Final response
+            "✓ Snapshot loaded successfully"                 # Status message
         ]
     except Exception as e:
         print(f"Load error: {str(e)}")
         return [None] * 9 + [f"Error loading snapshot: {str(e)}"]
 
-def update_snapshots_table(search_term=None):
-    try:
-        snapshots = db.get_snapshots(search_term)
-        if isinstance(snapshots, str) and ("Error" in snapshots or "Database error" in snapshots):
-            return []
-        return [[s[0], s[1], str(s[10]), s[4], s[2], s[11]] for s in snapshots]
-    except Exception as e:
-        print(f"Table update error: {str(e)}")
-        return []
-
-def delete_selected_snapshots(selected_data):
-    try:
-        if not selected_data or len(selected_data) == 0:
-            return "Please select snapshots to delete", None
+def update_snapshots_table(search_term: str = "") -> List[List]:
+    """
+    Update the snapshots table with filtered results.
+    
+    Args:
+        search_term: Optional search term to filter snapshots
         
-        snapshot_id = selected_data[0][0]
-        result = db.delete_snapshot(snapshot_id)
-        
-        if "Error" in result or "Database error" in result:
-            return result, None
-            
-        return "✓ Snapshot deleted successfully", update_snapshots_table()
-    except Exception as e:
-        print(f"Delete error: {str(e)}")
-        return f"Error deleting snapshot: {str(e)}", None
-
-def export_snapshots():
-    try:
-        result = db.export_snapshots()
-        if "Error" in result or "Database error" in result:
-            return result
-        return "✓ Snapshots exported successfully"
-    except Exception as e:
-        print(f"Export error: {str(e)}")
-        return f"Error exporting snapshots: {str(e)}"
-
-# Get the absolute path to the logo file
-current_dir = os.path.dirname(os.path.abspath(__file__))
-logo_path = os.path.join(current_dir, "images", "Linklaters.svg.png")
+    Returns:
+        List of snapshot data for table display
+    """
+    snapshots = db.get_snapshots(search_term)
+    return [[s[0], s[1], s[10], s[4], s[2], s[11]] for s in snapshots]
 
 # Gradio interface
 with gr.Blocks(theme=gr.themes.Soft()) as iface:
-    with gr.Column(scale=1):
-        gr.Image(logo_path, show_label=False, height=70)
-    
-    gr.Markdown("<br><br>")
-    
-    gr.Markdown("""
-    <h1 style='text-align: center; margin-bottom: 0;'>Document Analysis with Chain of Thought Reflection</h1>
-    <p style='text-align: center; font-style: italic; margin-top: 5px; font-size: 1.2em;'>powered by Linklaters GenAI Platform</p>
-    """)
-    
     with gr.Tabs():
+        # Analysis Tab
         with gr.TabItem("Analysis"):
             with gr.Row():
                 with gr.Column():
-                    with gr.Column(scale=1, min_width=600):
-                        model_selector = gr.Dropdown(
-                            choices=list(AVAILABLE_MODELS.keys()),
-                            value=list(AVAILABLE_MODELS.keys())[0],
-                            label="Select Model",
-                            interactive=True
-                        )
-                        
-                        file_input = gr.File(
-                            label="Upload Document (DOCX or PDF)",
-                            file_types=[".docx", ".pdf"]
-                        )
-                        user_prompt = gr.Textbox(
+                    model_selector = gr.Dropdown(
+                        choices=list(AVAILABLE_MODELS.keys()),
+                        value=list(AVAILABLE_MODELS.keys())[0],
+                        label="Select Model",
+                        interactive=True
+                    )
+                    file_input = gr.File(
+                        label="Upload Document (DOCX or PDF)",
+                        file_types=[".docx", ".pdf"]
+                    )
+                    user_prompt = gr.Textbox(
+                        lines=2,
+                        label="User Prompt",
+                        placeholder="Ask a question about the uploaded document..."
+                    )
+                    with gr.Accordion("System and Chain-of-Thought Prompts", open=False):
+                        system_prompt = gr.Textbox(
                             lines=2,
-                            label="",
-                            placeholder="Ask a question about the uploaded document using Chain of Thought reflection."
+                            label="System Prompt",
+                            value=default_system_prompt
                         )
-                        with gr.Accordion("Chain-of-Thought Prompt", open=False):
-                            system_prompt = gr.Textbox(
-                                lines=2,
-                                label="System Prompt",
-                                value=default_system_prompt
-                            )
-                            cot_prompt = gr.Textbox(
-                                lines=4,
-                                label="Chain of Thought Prompt",
-                                value=default_cot_prompt
-                            )
+                        cot_prompt = gr.Textbox(
+                            lines=4,
+                            label="Chain of Thought Prompt",
+                            value=default_cot_prompt
+                        )
                     submit_btn = gr.Button("Submit", variant="primary")
-            
+
             with gr.Row():
                 user_prompt_output = gr.Textbox(label="1. User Prompt", interactive=False)
                 initial_response_output = gr.Textbox(label="2. Initial Response", interactive=False)
                 thinking_output = gr.Textbox(label="3. Thinking", interactive=False)
                 reflection_output = gr.Textbox(label="4. Reflection", interactive=False)
                 final_output = gr.Textbox(label="5. Final Output", interactive=False)
-            
+
             with gr.Row():
                 snapshot_name = gr.Textbox(
                     label="Snapshot Name",
@@ -208,13 +156,14 @@ with gr.Blocks(theme=gr.themes.Soft()) as iface:
                     placeholder="tag1, tag2, tag3"
                 )
                 save_btn = gr.Button("💾 Save Snapshot", variant="secondary")
-            
+
             with gr.Row():
                 snapshot_status = gr.Textbox(
                     label="Status",
                     interactive=False
                 )
 
+        # Saved Snapshots Tab
         with gr.TabItem("Saved Snapshots"):
             with gr.Row():
                 search_box = gr.Textbox(
@@ -227,12 +176,17 @@ with gr.Blocks(theme=gr.themes.Soft()) as iface:
                 interactive=True,
                 label="Saved Snapshots",
                 value=update_snapshots_table(),
-                type="array"
+                type="array",
+                datatype=["number", "str", "str", "str", "str", "str"]
             )
             
             with gr.Row():
+                snapshot_id_input = gr.Textbox(
+                    label="Enter Snapshot ID to Load",
+                    placeholder="Enter the ID of the snapshot you want to load"
+                )
+                load_btn = gr.Button("📂 Load Snapshot by ID", variant="primary")
                 refresh_btn = gr.Button("🔄 Refresh", variant="secondary")
-                load_btn = gr.Button("📂 Load Selected", variant="primary")
                 delete_btn = gr.Button("🗑️ Delete Selected", variant="secondary")
                 export_btn = gr.Button("📤 Export", variant="secondary")
             
@@ -241,7 +195,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as iface:
                     label="Operation Status",
                     interactive=False
                 )
-    
+
     # Connect components
     submit_btn.click(
         fn=process_question,
@@ -251,11 +205,42 @@ with gr.Blocks(theme=gr.themes.Soft()) as iface:
     )
     
     save_btn.click(
-        fn=save_current_snapshot,
+        fn=lambda *args: (
+            db.save_snapshot({
+                'snapshot_name': args[0],
+                'user_prompt': args[1],
+                'system_prompt': args[2],
+                'model_name': args[3],
+                'cot_prompt': args[4],
+                'initial_response': args[5],
+                'thinking': args[6],
+                'reflection': args[7],
+                'final_response': args[8],
+                'tags': args[9]
+            }),
+            update_snapshots_table()
+        ),
         inputs=[snapshot_name, user_prompt_output, system_prompt, 
                 model_selector, cot_prompt, initial_response_output,
                 thinking_output, reflection_output, final_output, tags_input],
         outputs=[snapshot_status, snapshots_table]
+    )
+    
+    load_btn.click(
+        fn=load_snapshot_by_id,
+        inputs=[snapshot_id_input],
+        outputs=[
+            snapshot_name,           # Snapshot name
+            user_prompt,             # User prompt
+            system_prompt,           # System prompt
+            model_selector,          # Model name
+            cot_prompt,              # Chain of thought prompt
+            initial_response_output, # Initial response
+            thinking_output,         # Thinking process
+            reflection_output,       # Reflection
+            final_output,           # Final response
+            operation_status        # Status message
+        ]
     )
     
     search_box.change(
@@ -270,24 +255,14 @@ with gr.Blocks(theme=gr.themes.Soft()) as iface:
         outputs=snapshots_table
     )
     
-    load_btn.click(
-        fn=load_selected_snapshot,
-        inputs=[snapshots_table],
-        outputs=[
-            snapshot_name, user_prompt, system_prompt, model_selector,
-            cot_prompt, initial_response_output, thinking_output,
-            reflection_output, final_output, operation_status
-        ]
-    )
-    
     delete_btn.click(
-        fn=delete_selected_snapshots,
+        fn=lambda *args: db.delete_selected_snapshots(*args),
         inputs=[snapshots_table],
         outputs=[operation_status, snapshots_table]
     )
     
     export_btn.click(
-        fn=export_snapshots,
+        fn=lambda: db.export_snapshots(),
         inputs=[],
         outputs=operation_status
     )
