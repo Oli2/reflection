@@ -2,7 +2,8 @@ import sqlite3
 import json
 from datetime import datetime
 from functools import wraps
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional, Any
+from dataclasses import dataclass
 
 def safe_db_operation(operation):
     @wraps(operation)
@@ -14,6 +15,40 @@ def safe_db_operation(operation):
         except Exception as e:
             return f"Unexpected error: {str(e)}"
     return wrapper
+
+@dataclass
+class SnapshotData:
+    """Data model for snapshot information."""
+    id: int
+    name: str
+    model_name: str
+    user_prompt: str
+    system_prompt: Optional[str] = None
+    cot_prompt: Optional[str] = None
+    initial_response: Optional[str] = None
+    thinking: Optional[str] = None
+    reflection: Optional[str] = None
+    final_response: Optional[str] = None
+    created_at: Optional[datetime] = None
+    tags: Optional[str] = None
+
+    @classmethod
+    def from_db_row(cls, row: tuple) -> 'SnapshotData':
+        """Create SnapshotData instance from database row."""
+        return cls(
+            id=row[0],
+            name=row[1],
+            user_prompt=row[2],
+            system_prompt=row[3],
+            model_name=row[4],
+            cot_prompt=row[5],
+            initial_response=row[6],
+            thinking=row[7],
+            reflection=row[8],
+            final_response=row[9],
+            created_at=row[10],
+            tags=row[11]
+        )
 
 class SnapshotDB:
     def __init__(self, db_path: str = 'prompts_snapshots.db'):
@@ -41,6 +76,15 @@ class SnapshotDB:
 
     @safe_db_operation
     def save_snapshot(self, snapshot_data: Dict) -> str:
+        """
+        Save snapshot to database.
+        
+        Args:
+            snapshot_data: Dictionary containing snapshot data
+            
+        Returns:
+            Status message
+        """
         try:
             with sqlite3.connect(self.db_path) as conn:
                 c = conn.cursor()
@@ -61,7 +105,7 @@ class SnapshotDB:
                           datetime.now(),
                           snapshot_data.get('tags', '')))
                 conn.commit()
-                return "Success"
+                return "✓ Snapshot saved successfully"
         except sqlite3.Error as e:
             return f"Database error: {str(e)}"
         except Exception as e:
@@ -84,26 +128,57 @@ class SnapshotDB:
             return c.fetchall()
 
     @safe_db_operation
-    def get_snapshot_by_id(self, snapshot_id: int) -> Optional[Tuple]:
-        with sqlite3.connect(self.db_path) as conn:
-            c = conn.cursor()
-            c.execute('SELECT * FROM snapshots WHERE id = ?', (snapshot_id,))
-            return c.fetchone()
-
-    @safe_db_operation
-    def delete_snapshot(self, snapshot_id: int) -> str:
+    def get_snapshot_by_id(self, snapshot_id: int) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve a snapshot by ID and return as a dictionary.
+        
+        Args:
+            snapshot_id: The ID of the snapshot to retrieve
+            
+        Returns:
+            Dictionary containing snapshot data if found, None otherwise
+        """
         try:
             with sqlite3.connect(self.db_path) as conn:
                 c = conn.cursor()
-                c.execute('DELETE FROM snapshots WHERE id = ?', (snapshot_id,))
-                if c.rowcount > 0:
-                    conn.commit()
-                    return "Success"
-                return "Snapshot not found"
-        except sqlite3.Error as e:
-            return f"Database error: {str(e)}"
+                c.execute('SELECT * FROM snapshots WHERE id = ?', (snapshot_id,))
+                snapshot = c.fetchone()
+                
+                if not snapshot:
+                    return None
+                
+                # Convert snapshot data to dictionary
+                return {
+                    "snapshot_name": snapshot[1],
+                    "user_prompt": snapshot[2],
+                    "system_prompt": snapshot[3],
+                    "model_name": snapshot[4],
+                    "cot_prompt": snapshot[5],
+                    "initial_response": snapshot[6],
+                    "thinking": snapshot[7],
+                    "reflection": snapshot[8],
+                    "final_response": snapshot[9],
+                    "created_at": snapshot[10],
+                    "tags": snapshot[11]
+                }
+                
         except Exception as e:
-            return f"Error: {str(e)}"
+            print(f"Database retrieval error: {e}")
+            return None
+
+    @safe_db_operation
+    def delete_selected_snapshots(self, selected_rows: List[List]) -> Tuple[str, List[List]]:
+        """Delete selected snapshots and return updated table data."""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                c = conn.cursor()
+                for row in selected_rows:
+                    snapshot_id = row[0]  # First column is ID
+                    c.execute('DELETE FROM snapshots WHERE id = ?', (snapshot_id,))
+                conn.commit()
+                return "✓ Selected snapshots deleted successfully", self.get_snapshots()
+        except Exception as e:
+            return f"Error deleting snapshots: {str(e)}", self.get_snapshots()
 
     @safe_db_operation
     def export_snapshots(self, format: str = 'json') -> str:
