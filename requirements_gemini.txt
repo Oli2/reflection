@@ -3,4 +3,5 @@ python-docx==1.1.0
 pydantic==2.6.4
 PyPDF2==3.0.1
 anthropic[vertex]
+litellm
 # weave==0.52.12

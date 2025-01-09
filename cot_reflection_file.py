@@ -1,29 +1,39 @@
-import re
-from vertexai.generative_models import GenerativeModel
-from anthropic import AnthropicVertex
+from app_config import LLM_API_KEYS
+from litellm import completion
 
 # Initialize models
 AVAILABLE_MODELS = {
-    # "Gemini 1.5 Pro": "gemini-1.5-pro",
-    "Gemini 2.0 Fash": "gemini-2.0-flash-exp",
-    "Claude 3.5 Sonnet": "claude-3-5-sonnet@20240620"
+    "Gemini 2.0 Flash":     ("vertex_ai",       "vertex_ai/gemini-2.0-flash-exp",           "us-central1"),
+    "Claude 3.5 Sonnet":    ("vertex_ai",       "vertex_ai/claude-3-5-sonnet@20240620",     "us-east5"),
+    "Llama 3.1 70B":        ("azure_ai",        "azure_ai/llama-3-1-70b-instruct",          "https://api-llama-3-1-70b-instruct-live-llsyids.swedencentral.models.ai.azure.com/"),
+    "Llama 3.1 405B":       ("azure_ai",        "azure_ai/llama-3-1-405b-instruct",         "https://api-llama-3-1-405b-instruct-live-llsyids.eastus.models.ai.azure.com/"),
+    "Llama 3.3 70B":        ("azure_ai",        "azure_ai/llama-3-3-70b-instruct",          "https://api-llama-3-3-70b-instruct-teardown-llsyids.eastus.models.ai.azure.com/"),
+    "OpenAI gpt-4o":        ("azure_ai",        "azure_ai/gpt-4o",                          "https://swedencentral.api.cognitive.microsoft.com/openai/deployments/gpt-4o/chat/completions?api-version=2024-08-01-preview")
 }
-project_id = "genai-sandbox-421407"
+
 def get_model_response(model_name, prompt):
     """Helper function to get response from selected model"""
+    model_provider = AVAILABLE_MODELS[model_name][0]
+
     try:
-        if "Gemini" in model_name:
-            model = GenerativeModel(AVAILABLE_MODELS[model_name])
-            response = model.generate_content(prompt).text
-        elif "Claude" in model_name:
-            client = AnthropicVertex(project_id=project_id, region="us-east5")
-            message = client.messages.create(
-                model=AVAILABLE_MODELS[model_name],
-                max_tokens=1024,
-                messages=[{"role": "user", "content": prompt}]
+        if model_provider == "vertex_ai":
+            model_provider, model_id, model_location = AVAILABLE_MODELS[model_name]
+            response = completion(
+                model = model_id,
+                messages = [{ "content": prompt, "role": "user"}],
+                vertex_location = model_location
             )
-            response = message.content[0].text
-        return response
+
+        elif model_provider == "azure_ai":
+            model_provider, model_id, api_base = AVAILABLE_MODELS[model_name]
+            response = completion(
+                model = model_id,
+                messages = [{ "content": prompt, "role": "user"}],
+                api_key = LLM_API_KEYS[model_id],
+                api_base = api_base
+            )
+        
+        return response.choices[0].message.content
     except Exception as e:
         return f"Error with {model_name}: {str(e)}"
 
