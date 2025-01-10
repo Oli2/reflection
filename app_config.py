@@ -7,8 +7,8 @@ os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = VERTEX_DEFAULT_CREDENTIALS_FILE_P
 
 ## API keys
 LLM_API_KEYS={
-    "azure_ai/llama-3-1-70b-instruct": "DM6Hk3tcc87Y0wJVu2rP0wSnPQl7hsiX",
-    "azure_ai/llama-3-1-405b-instruct": "4zibPIJCvCg8dcXPTM5DaKPmUTM9dlbB",
-    "azure_ai/llama-3-3-70b-instruct": "WHfCuNYnkphFAkH54h9b4g6OQLIXJom3",
-    "azure_ai/gpt-4o": "1feef3866ab5485c910270d0ad659e93"
+    "azure_ai/llama-3-1-70b-instruct": "to be set",
+    "azure_ai/llama-3-1-405b-instruct": "to be set",
+    "azure_ai/llama-3-3-70b-instruct": "to be set",
+    "azure_ai/gpt-4o": "to be set"
 }
