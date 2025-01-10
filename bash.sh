@@ -1,3 +1,3 @@
-export GOOGLE_APPLICATION_CREDENTIALS="/Users/tomc/service_acccount_key.json"
-export PROJECT_ID="genai-sandbox-421407"
-export OPENAI_API_KEY="1feef3866ab5485c910270d0ad659e93"
+export GOOGLE_APPLICATION_CREDENTIALS="to be set"
+export PROJECT_ID="to be set"
+export OPENAI_API_KEY="to be set"
