@@ -17,13 +17,6 @@ from db_utils import SnapshotDB
 # Initialize database
 db = SnapshotDB()
 
-# Explicitly define available models to ensure they match cot_reflection_file.py
-MODELS = {
-    "Gemini 2.0 Fash": "gemini-2.0-flash-exp",
-    "Claude 3.5 Sonnet": "claude-3-5-sonnet@20240620",
-    "ChatGPT-4o": "gpt-4o"
-}
-
 def get_available_models() -> List[str]:
     """
     Get list of available models.
@@ -31,7 +24,7 @@ def get_available_models() -> List[str]:
     Returns:
         List of model names
     """
-    return list(MODELS.keys())
+    return list(AVAILABLE_MODELS.keys())
 
 def process_question(file, user_prompt, system_prompt, cot_prompt, selected_model):
     """
@@ -147,7 +140,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as iface:
                     # Use the explicitly defined models list
                     model_selector = gr.Dropdown(
                         choices=get_available_models(),
-                        value="Gemini 2.0 Fash",  # Default model
+                        value="Gemini 2.0 Flash",  # Default model
                         label="Select Model",
                         interactive=True,
                         info="Choose from available models: Gemini, Claude, or ChatGPT-4o"

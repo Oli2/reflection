@@ -16,48 +16,6 @@ AVAILABLE_MODELS = {
     "OpenAI gpt-4o":        ("azure_ai",        "azure_ai/gpt-4o",                          "https://swedencentral.api.cognitive.microsoft.com/openai/deployments/gpt-4o/chat/completions?api-version=2024-08-01-preview")
 }
 
-def get_model_response(model_name, prompt):
-    """Helper function to get response from selected model"""
-    model_provider = AVAILABLE_MODELS[model_name][0]
-
-    "Gemini 2.0 Fash": "gemini-2.0-flash-exp",
-    "Claude 3.5 Sonnet": "claude-3-5-sonnet@20240620",
-    "ChatGPT-4o": "gpt-4o"
-}
-
-# Configuration
-project_id = "genai-sandbox-421407"
-AZURE_ENDPOINT = "https://openai-genaiteam-swec-teardown.openai.azure.com"
-API_VERSION = "2024-08-01-preview"
-
-# Initialize Azure OpenAI client
-azure_client = AzureOpenAI(
-    api_key=os.getenv("OPENAI_API_KEY"),
-    api_version=API_VERSION,
-    azure_endpoint=AZURE_ENDPOINT
-)
-
-def get_azure_completion(prompt: str, max_tokens: int = 1024) -> str:
-    """
-    Get completion from Azure OpenAI model.
-    
-    Args:
-        prompt: The input prompt
-        max_tokens: Maximum tokens in response
-        
-    Returns:
-        Generated text response
-    """
-    try:
-        response = azure_client.chat.completions.create(
-            model="gpt-4o",  # Use deployment name directly
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=max_tokens
-        )
-        return response.choices[0].message.content
-    except Exception as e:
-        raise Exception(f"Azure OpenAI error: {str(e)}")
-
 def get_model_response(model_name: str, prompt: str) -> str:
     """
     Helper function to get response from selected model
@@ -70,40 +28,29 @@ def get_model_response(model_name: str, prompt: str) -> str:
         Generated text response
     """
     try:
-        if model_provider == "vertex_ai":
-            model_provider, model_id, model_location = AVAILABLE_MODELS[model_name]
-            response = completion(
-                model = model_id,
-                messages = [{ "content": prompt, "role": "user"}],
-                vertex_location = model_location
-            )
-
-        elif model_provider == "azure_ai":
-            model_provider, model_id, api_base = AVAILABLE_MODELS[model_name]
-            response = completion(
-                model = model_id,
-                messages = [{ "content": prompt, "role": "user"}],
-                api_key = LLM_API_KEYS[model_id],
-                api_base = api_base
-            )
-        
-        return response.choices[0].message.content
-        if "Gemini" in model_name:
-            model = GenerativeModel(AVAILABLE_MODELS[model_name])
-            response = model.generate_content(prompt).text
-            return response
-        elif "Claude" in model_name:
-            client = AnthropicVertex(project_id=project_id, region="us-east5")
-            message = client.messages.create(
-                model=AVAILABLE_MODELS[model_name],
-                max_tokens=1024,
-                messages=[{"role": "user", "content": prompt}]
-            )
-            return message.content[0].text
-        elif "ChatGPT" in model_name:
-            return get_azure_completion(prompt)
-        else:
+        if model_name not in AVAILABLE_MODELS:
             raise ValueError(f"Unknown model: {model_name}")
+            
+        model_provider, model_id, location_or_base = AVAILABLE_MODELS[model_name]
+        
+        if model_provider == "vertex_ai":
+            response = completion(
+                model=model_id,
+                messages=[{"content": prompt, "role": "user"}],
+                vertex_location=location_or_base
+            )
+        elif model_provider == "azure_ai":
+            response = completion(
+                model=model_id,
+                messages=[{"content": prompt, "role": "user"}],
+                api_key=LLM_API_KEYS[model_id],
+                api_base=location_or_base
+            )
+        else:
+            raise ValueError(f"Unknown provider: {model_provider}")
+            
+        return response.choices[0].message.content
+        
     except Exception as e:
         return f"Error with {model_name}: {str(e)}"
 
@@ -112,7 +59,7 @@ def cot_reflection(
     cot_prompt: str,
     question: str,
     document_content: str = None,
-    model_name: str = "Gemini 2.0 Fash"
+    model_name: str = "Gemini 2.0 Flash"
 ) -> tuple[str, str, str]:
     """
     Perform chain-of-thought reflection using the specified model
