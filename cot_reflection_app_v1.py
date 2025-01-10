@@ -26,7 +26,7 @@ def get_available_models() -> List[str]:
     """
     return list(AVAILABLE_MODELS.keys())
 
-def process_question(file, user_prompt, system_prompt, cot_prompt, selected_model):
+def process_question(file, user_prompt, system_prompt, cot_prompt, selected_model, use_default_cot):
     """
     Process user question using selected model and prompts.
     
@@ -36,6 +36,7 @@ def process_question(file, user_prompt, system_prompt, cot_prompt, selected_mode
         system_prompt: System context
         cot_prompt: Chain of thought prompt
         selected_model: Name of selected model
+        use_default_cot: Boolean indicating if default CoT prompt should be used
         
     Returns:
         Tuple of processed outputs
@@ -50,30 +51,43 @@ def process_question(file, user_prompt, system_prompt, cot_prompt, selected_mode
         if file is not None:
             document_content = read_document(file.name)
 
-        # Get thinking, reflection, and output from cot_reflection
-        thinking, reflection, output = cot_reflection(
-            system_prompt=system_prompt,
-            cot_prompt=cot_prompt,
-            question=user_prompt,
-            document_content=document_content,
-            model_name=selected_model
-        )
+        # If the checkbox is checked, use CoT logic
+        if use_default_cot:
+            # If the checkbox is checked, generate an initial response without CoT
+            doc_content = f"Document Content:\n{document_content}\n\n" if document_content else ""
+            initial_response_prompt = (f"{system_prompt}\n\n{doc_content}"
+                                       f"Question: {user_prompt}\n\n"
+                                       "Provide a concise answer to this question without any explanation or reasoning.")
+            initial_response = get_model_response(selected_model, initial_response_prompt)            
+            # Get thinking, reflection, and output from cot_reflection
+            thinking, reflection, output = cot_reflection(
+                system_prompt=system_prompt,
+                cot_prompt=default_cot_prompt,  # Use default CoT prompt
+                question=user_prompt,
+                document_content=document_content,
+                model_name=selected_model
+            )
 
-        # Extract the actual thinking content
-        thinking_match = re.search(r'<thinking>(.*?)</thinking>', thinking, re.DOTALL)
-        actual_thinking = thinking_match.group(1).strip() if thinking_match else thinking
+            # Extract the actual thinking content
+            thinking_match = re.search(r'<thinking>(.*?)</thinking>', thinking, re.DOTALL)
+            actual_thinking = thinking_match.group(1).strip() if thinking_match else thinking
 
-        # Get the initial response
-        doc_content = f"Document Content:\n{document_content}\n\n" if document_content else ""
-        initial_response_prompt = (f"{system_prompt}\n\n{doc_content}"
-                                   f"Question: {user_prompt}\n\n"
-                                   "Provide a concise answer to this question without any explanation or reasoning.")
-        initial_response = get_model_response(selected_model, initial_response_prompt)
+            # Return all outputs related to CoT
+            return user_prompt, initial_response, actual_thinking, reflection, output, system_prompt, default_cot_prompt
+        else:
+            # If the checkbox is not checked, generate a response without CoT
+            doc_content = f"Document Content:\n{document_content}\n\n" if document_content else ""
+            initial_response_prompt = (f"{system_prompt}\n\n{doc_content}"
+                                       f"Question: {user_prompt}\n\n"
+                                       "Provide a concise answer to this question without any explanation or reasoning.")
+            initial_response = get_model_response(selected_model, initial_response_prompt)
 
-        return user_prompt, initial_response, actual_thinking, reflection, output, system_prompt, cot_prompt
+            # Return only the user prompt and initial response, with empty strings for CoT outputs
+            return user_prompt, initial_response, "", "", "", system_prompt, None  # No CoT prompt used, Final Output as empty string
+
     except Exception as e:
         print(f"Process error: {str(e)}")
-        return user_prompt, f"An error occurred: {str(e)}", "", "", "", system_prompt, cot_prompt
+        return user_prompt, f"An error occurred: {str(e)}", "", "", "", None  # No CoT prompt used, Final Output as empty string
 
 def load_snapshot_by_id(snapshot_id: str) -> List[Optional[Any]]:
     """
@@ -143,7 +157,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as iface:
                         value="Gemini 2.0 Flash",  # Default model
                         label="Select Model",
                         interactive=True,
-                        info="Choose from available models: Gemini, Claude, or ChatGPT-4o"
+                        info="Choose from the dropdown menu of the available LLMs"
                     )
                     
                     file_input = gr.File(
@@ -155,6 +169,13 @@ with gr.Blocks(theme=gr.themes.Soft()) as iface:
                         label="User Prompt",
                         placeholder="Ask a question about the uploaded document..."
                     )
+                    # Checkbox to use default CoT prompt
+                    use_default_cot = gr.Checkbox(
+                        label="Use Default Chain of Thought Prompt",
+                        value=False
+                    )
+                    submit_btn = gr.Button("Submit", variant="primary")
+                    
                     with gr.Accordion("System and Chain-of-Thought Prompts", open=False):
                         system_prompt = gr.Textbox(
                             lines=2,
@@ -166,7 +187,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as iface:
                             label="Chain of Thought Prompt",
                             value=default_cot_prompt
                         )
-                    submit_btn = gr.Button("Submit", variant="primary")
+
 
             with gr.Row():
                 user_prompt_output = gr.Textbox(label="1. User Prompt", interactive=False)
@@ -228,8 +249,8 @@ with gr.Blocks(theme=gr.themes.Soft()) as iface:
     # Connect components
     submit_btn.click(
         fn=lambda *args: process_question(*args) if args[4] in get_available_models() else 
-            (args[0], "Error: Invalid model selected", "", "", "", args[2], args[3]),
-        inputs=[file_input, user_prompt, system_prompt, cot_prompt, model_selector],
+            (args[0], "Error: Invalid model selected", "", "", "", args[2], args[3], args[5]),
+        inputs=[file_input, user_prompt, system_prompt, cot_prompt, model_selector, use_default_cot],
         outputs=[user_prompt_output, initial_response_output, thinking_output, 
                 reflection_output, final_output, system_prompt, cot_prompt]
     )
