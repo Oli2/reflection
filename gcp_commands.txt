@@ -1,0 +1,3 @@
+gcp_commands
+
+gcloud compute ssh cot-dev --zone=us-central1-a

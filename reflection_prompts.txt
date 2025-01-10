@@ -1,0 +1,6 @@
+
+python reflection_gemini.py --read "/Users/tomc/Downloads/LMAs/Takeover_facility_agreement1_17.docx" --question "What is the purpose of the Takeover Code?"
+python reflection_gemini.py --read "/Users/tomc/Downloads/LMAs/Takeover_facility_agreement1_17.docx" --question "What is the Facility Amount in the document? Be precise and give back numeric values. Explain you reasoning"
+python reflection_gemini.py --read "/Users/tomc/Downloads/LMAs/Takeover_facility_agreement1_17.docx" --question "What is the value of the Facility Agency Fee? Be precise and give back numeric value and the currency. Explain you reasoning"
+
+1. "summarize the attached document in the following format: <Content Summary>, <Conclusions>"

@@ -1,0 +1,32 @@
+Your task is to create a fully functional front-end web UI for the reflection_gemini.py script using the Gradio library. Use cot_reflection_app.py as a reference for the layout and structure. Follow these specific instructions:
+
+1. Import necessary modules, including the main function from reflection_gemini.py.
+
+2. Define default values for GCP project, location, credentials, and a default question.
+
+3. Create a process_document function that:
+   - Handles file uploads and input validation
+   - Calls the main function from reflection_gemini.py
+   - Properly handles and formats the returned results
+   - Includes comprehensive error handling
+
+4. Design the Gradio interface with the following components:
+   - Logo display (provide instructions for logo path)
+   - Title and description
+   - Input fields for document upload, question, and GCP settings
+   - Output fields for question, initial answer, feedback, and revised answer
+   - Submit button
+
+5. Implement the interface using gr.Blocks() for more flexible layout control.
+
+6. Connect the submit button to the process_document function, mapping inputs and outputs correctly.
+
+7. Include a main block to launch the Gradio interface.
+
+8. Provide clear comments throughout the code explaining each section's purpose.
+
+9. Ensure all error cases are handled gracefully, with informative messages displayed in the UI.
+
+10. Test the interface with sample inputs to verify functionality.
+
+Return the complete, working Python code for the Gradio interface, ensuring it integrates seamlessly with the reflection_gemini.py script.

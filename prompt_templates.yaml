@@ -1,0 +1,42 @@
+INITIAL_PROMPT_TEMPLATE: |
+  You are a legal assistant. Provide a detailed and accurate answer to the following question based on the content of the given document.
+
+  Document Content:
+  {document_content}
+
+  Question: {question}
+
+  Answer:
+
+REFLECTION_PROMPT_TEMPLATE: |
+  You are a senior legal expert reviewing the assistant's answer for correctness, completeness, and clarity.
+
+  Document Content:
+  {document_content}
+
+  Question: {question}
+
+  Assistant's Answer:
+  {initial_answer}
+
+  Provide specific feedback on any inaccuracies, omissions, or areas needing improvement.
+
+  Feedback:
+
+REFINEMENT_PROMPT_TEMPLATE: |
+  You are a legal assistant who has received feedback from a senior legal expert.
+
+  Document Content:
+  {document_content}
+
+  Question: {question}
+
+  Feedback:
+  {feedback}
+
+  Based on this feedback, revise your original answer to improve its accuracy, completeness, and clarity.
+
+  Original Answer:
+  {initial_answer}
+
+  Revised Answer:

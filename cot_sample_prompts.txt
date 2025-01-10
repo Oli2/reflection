@@ -1,0 +1,79 @@
+<cot_reflection questions>
+python cot_reflection.py -q "What would be the steps for a lawyer to prepare Key Risk section of prospectus document for a company planning IPO?. What publicly available data, news feeds  would provide valuable insights to outline key risks?"
+
+Anna weighs 70kg. Lisa's weight yesterday evening was 68kg. She drank 2 litres of water in the morning. What is Lisa's weight assuming that she lost 0.5 kg overnight? Explain your reasoning.
+
+You are AI Researcher. Explain in detail the best practices in terms of AI experiment design. Describe individual components of an experiment design process and their objectives and expected outcomes.
+
+"You are Gemini architect. Given Gemini Pro architecture, explain the difference between system level and user level prompts. Give examples to illustrate the differences. Propose prompt design patterns the developers can use in terms of system and user level instructions to maximize the accuracy of Gemini Pro responses."
+" You are a corporate lawyer providing legal advice for companies planning the IPO offering. Describe the key risk classes you would advise in the prospectus document."
+
+**Contract Analysis:** "A contract states that a construction project must be completed by June 1st, but allows for an extension in case of "unforeseeable circumstances." Due to a global pandemic, the materials are delayed, and the project is completed on August 1st.  Was the contract breached? Provide your reasoning step-by-step. "
+
+
+Here are five carefully structured prompts designed to test a large language model’s ability to engage in chain-of-thought reasoning. Each prompt is designed to encourage the model to break down the problem, plan a solution, and employ analytical thinking in a step-by-step manner.
+
+---
+
+### 1. **Multi-Step Logical Deduction:**
+You are a detective investigating a case involving five suspects (Alice, Bob, Charlie, Dave, and Emma) who were all present at a crime scene. You have the following information:
+- Only one of them is guilty.
+- Alice says, "I'm innocent, and so is Dave."
+- Bob says, "I'm guilty."
+- Charlie says, "Emma is innocent."
+- Dave says, "Bob is lying."
+- Emma says, "Bob is telling the truth."
+
+If only one of the statements made by the suspects is true, who is the guilty person? Explain your reasoning step by step.
+
+---
+
+### 2. **Mathematical Problem with Ambiguity:**
+A hotel has 10 floors, and each floor has 10 rooms. A robot starts on the ground floor and can move to any room by either:
+- Moving to the same room on the floor above or below.
+- Moving to an adjacent room on the same floor.
+
+The robot starts in room 5 on the 1st floor. After 15 moves, is it possible for the robot to be back in room 5 on the 1st floor? If yes, provide the sequence of moves; if no, explain why. Think carefully about the constraints and provide a step-by-step solution.
+
+---
+
+### 3. **Real-World Planning and Optimization:**
+You are managing a team of developers tasked with building a new feature for an app. The project must be completed in exactly 10 days, with the following constraints:
+- You have three developers: Alice, Bob, and Charlie.
+- Alice can complete 2 units of work per day, Bob can complete 3 units per day, and Charlie can complete 1 unit per day.
+- The project requires exactly 40 units of work to be completed.
+- Alice and Charlie will both be unavailable for days 6 through 8 due to a conference.
+
+Devise a work plan that ensures the project is completed on time. Explain the reasoning and calculations behind your solution step by step.
+
+---
+
+### 4. **Hypothetical Moral Dilemma (Ethical Reasoning):**
+Imagine there is a train heading towards five people tied to a track. You have the option to pull a lever to divert the train to another track, but doing so will cause it to hit one person instead of five. Now, imagine a different scenario where you are standing on a bridge and could push a large person off to stop the train and save the five people.
+
+Should you pull the lever or push the person? Compare both scenarios using a step-by-step moral reasoning process, considering utilitarian ethics, deontological ethics, and any other relevant frameworks.
+
+---
+
+### 5. **Complex Puzzle Involving Memory and Temporal Reasoning:**
+You are trapped in a room with two doors. One door leads to freedom, while the other leads to a pit of fire. There are two guards, each guarding one of the doors:
+- One guard always tells the truth.
+- The other guard always lies.
+- You do not know which guard is which, but you can ask one guard a single yes/no question.
+
+Formulate a question that guarantees you can figure out which door leads to freedom. Explain the reasoning behind the question and how it would lead to a safe exit.
+
+---
+
+Each of these prompts challenges the model to use structured, multi-step reasoning. They test the model's ability to analyze data, perform logical deductions, break down complex tasks, apply ethical frameworks, and handle ambiguity or incomplete information.
+
+++++++++++++++++++++
+
+building the GCP instance to run the cot_reflection_file_app.py
+<prompt> v1
+I have a project set up on Google GCP. I have a service account set up and a json file with all the access details. 
+Your task is to instruct me step-by-step on how to use vertex ai SDK to :
+1. spin up a small CPU instance on GCP and build a conda environment to allow python development projects 
+2. Get remote access to this instance using the service account
+3. Clone a github repository into the instance
+4. Run the code and and allow external access to the web server created as a result of this process. 
