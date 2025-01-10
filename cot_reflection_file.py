@@ -1,7 +1,12 @@
 from app_config import LLM_API_KEYS
 from litellm import completion
+import re
+import os
+from vertexai.generative_models import GenerativeModel
+from anthropic import AnthropicVertex
+from openai import AzureOpenAI
 
-# Initialize models
+# Initialize models with their deployment names
 AVAILABLE_MODELS = {
     "Gemini 2.0 Flash":     ("vertex_ai",       "vertex_ai/gemini-2.0-flash-exp",           "us-central1"),
     "Claude 3.5 Sonnet":    ("vertex_ai",       "vertex_ai/claude-3-5-sonnet@20240620",     "us-east5"),
@@ -15,6 +20,55 @@ def get_model_response(model_name, prompt):
     """Helper function to get response from selected model"""
     model_provider = AVAILABLE_MODELS[model_name][0]
 
+    "Gemini 2.0 Fash": "gemini-2.0-flash-exp",
+    "Claude 3.5 Sonnet": "claude-3-5-sonnet@20240620",
+    "ChatGPT-4o": "gpt-4o"
+}
+
+# Configuration
+project_id = "genai-sandbox-421407"
+AZURE_ENDPOINT = "https://openai-genaiteam-swec-teardown.openai.azure.com"
+API_VERSION = "2024-08-01-preview"
+
+# Initialize Azure OpenAI client
+azure_client = AzureOpenAI(
+    api_key=os.getenv("OPENAI_API_KEY"),
+    api_version=API_VERSION,
+    azure_endpoint=AZURE_ENDPOINT
+)
+
+def get_azure_completion(prompt: str, max_tokens: int = 1024) -> str:
+    """
+    Get completion from Azure OpenAI model.
+    
+    Args:
+        prompt: The input prompt
+        max_tokens: Maximum tokens in response
+        
+    Returns:
+        Generated text response
+    """
+    try:
+        response = azure_client.chat.completions.create(
+            model="gpt-4o",  # Use deployment name directly
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=max_tokens
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        raise Exception(f"Azure OpenAI error: {str(e)}")
+
+def get_model_response(model_name: str, prompt: str) -> str:
+    """
+    Helper function to get response from selected model
+    
+    Args:
+        model_name: Name of the model to use
+        prompt: Input prompt
+        
+    Returns:
+        Generated text response
+    """
     try:
         if model_provider == "vertex_ai":
             model_provider, model_id, model_location = AVAILABLE_MODELS[model_name]
@@ -34,12 +88,44 @@ def get_model_response(model_name, prompt):
             )
         
         return response.choices[0].message.content
+        if "Gemini" in model_name:
+            model = GenerativeModel(AVAILABLE_MODELS[model_name])
+            response = model.generate_content(prompt).text
+            return response
+        elif "Claude" in model_name:
+            client = AnthropicVertex(project_id=project_id, region="us-east5")
+            message = client.messages.create(
+                model=AVAILABLE_MODELS[model_name],
+                max_tokens=1024,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            return message.content[0].text
+        elif "ChatGPT" in model_name:
+            return get_azure_completion(prompt)
+        else:
+            raise ValueError(f"Unknown model: {model_name}")
     except Exception as e:
         return f"Error with {model_name}: {str(e)}"
 
-def cot_reflection(system_prompt, cot_prompt, question, document_content=None, model_name="Gemini 1.5 Pro"):
+def cot_reflection(
+    system_prompt: str,
+    cot_prompt: str,
+    question: str,
+    document_content: str = None,
+    model_name: str = "Gemini 2.0 Fash"
+) -> tuple[str, str, str]:
     """
     Perform chain-of-thought reflection using the specified model
+    
+    Args:
+        system_prompt: System context prompt
+        cot_prompt: Chain of thought prompt
+        question: User question
+        document_content: Optional document content
+        model_name: Name of model to use
+        
+    Returns:
+        Tuple of (thinking, reflection, output)
     """
     try:
         # Format the prompts
@@ -51,13 +137,22 @@ def cot_reflection(system_prompt, cot_prompt, question, document_content=None, m
         thinking = f"<thinking>{thinking_response}</thinking>"
         
         # Format reflection prompt
-        reflection_prompt = f"{system_prompt}\n\nInitial thinking: {thinking_response}\n\nReflect on this thinking process. What are the key assumptions? Are there any logical gaps or potential biases? How can the reasoning be improved?"
+        reflection_prompt = (
+            f"{system_prompt}\n\nInitial thinking: {thinking_response}\n\n"
+            "Reflect on this thinking process. What are the key assumptions? "
+            "Are there any logical gaps or potential biases? How can the reasoning be improved?"
+        )
         
         # Get reflection using selected model
         reflection = get_model_response(model_name, reflection_prompt)
         
         # Format final output prompt
-        final_prompt = f"{system_prompt}\n\nQuestion: {question}\n\nInitial thinking: {thinking_response}\n\nReflection: {reflection}\n\nBased on this reflection, provide an improved final answer:"
+        final_prompt = (
+            f"{system_prompt}\n\nQuestion: {question}\n\n"
+            f"Initial thinking: {thinking_response}\n\n"
+            f"Reflection: {reflection}\n\n"
+            "Based on this reflection, provide an improved final answer:"
+        )
         
         # Get final output using selected model
         output = get_model_response(model_name, final_prompt)

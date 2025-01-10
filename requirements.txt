@@ -5,3 +5,4 @@ openai==1.14.2
 python-docx==1.1.0
 pydantic==2.6.4
 litellm
+weave==0.52.12

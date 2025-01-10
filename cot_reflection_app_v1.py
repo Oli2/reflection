@@ -17,8 +17,41 @@ from db_utils import SnapshotDB
 # Initialize database
 db = SnapshotDB()
 
+# Explicitly define available models to ensure they match cot_reflection_file.py
+MODELS = {
+    "Gemini 2.0 Fash": "gemini-2.0-flash-exp",
+    "Claude 3.5 Sonnet": "claude-3-5-sonnet@20240620",
+    "ChatGPT-4o": "gpt-4o"
+}
+
+def get_available_models() -> List[str]:
+    """
+    Get list of available models.
+    
+    Returns:
+        List of model names
+    """
+    return list(MODELS.keys())
+
 def process_question(file, user_prompt, system_prompt, cot_prompt, selected_model):
+    """
+    Process user question using selected model and prompts.
+    
+    Args:
+        file: Optional document file
+        user_prompt: User's question
+        system_prompt: System context
+        cot_prompt: Chain of thought prompt
+        selected_model: Name of selected model
+        
+    Returns:
+        Tuple of processed outputs
+    """
     try:
+        # Validate model selection
+        if selected_model not in AVAILABLE_MODELS:
+            raise ValueError(f"Invalid model selected: {selected_model}")
+            
         # Read document content if file is provided
         document_content = None
         if file is not None:
@@ -111,12 +144,15 @@ with gr.Blocks(theme=gr.themes.Soft()) as iface:
         with gr.TabItem("Analysis"):
             with gr.Row():
                 with gr.Column():
+                    # Use the explicitly defined models list
                     model_selector = gr.Dropdown(
-                        choices=list(AVAILABLE_MODELS.keys()),
-                        value=list(AVAILABLE_MODELS.keys())[0],
+                        choices=get_available_models(),
+                        value="Gemini 2.0 Fash",  # Default model
                         label="Select Model",
-                        interactive=True
+                        interactive=True,
+                        info="Choose from available models: Gemini, Claude, or ChatGPT-4o"
                     )
+                    
                     file_input = gr.File(
                         label="Upload Document (DOCX or PDF)",
                         file_types=[".docx", ".pdf"]
@@ -198,7 +234,8 @@ with gr.Blocks(theme=gr.themes.Soft()) as iface:
 
     # Connect components
     submit_btn.click(
-        fn=process_question,
+        fn=lambda *args: process_question(*args) if args[4] in get_available_models() else 
+            (args[0], "Error: Invalid model selected", "", "", "", args[2], args[3]),
         inputs=[file_input, user_prompt, system_prompt, cot_prompt, model_selector],
         outputs=[user_prompt_output, initial_response_output, thinking_output, 
                 reflection_output, final_output, system_prompt, cot_prompt]
