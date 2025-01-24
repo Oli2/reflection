@@ -51,28 +51,29 @@ class SnapshotData:
         )
 
 class SnapshotDB:
-    def __init__(self, db_path: str = 'prompts_snapshots.db'):
+    def __init__(self, db_path: str = "prompts_snapshots.db"):
         self.db_path = db_path
-        self.init_db()
+        self._init_db()
 
-    @safe_db_operation
-    def init_db(self):
+    def _init_db(self):
+        """Initialize database with required tables"""
         with sqlite3.connect(self.db_path) as conn:
-            c = conn.cursor()
-            c.execute('''CREATE TABLE IF NOT EXISTS snapshots
-                        (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                         snapshot_name TEXT NOT NULL,
-                         user_prompt TEXT NOT NULL,
-                         system_prompt TEXT,
-                         model_name TEXT NOT NULL,
-                         cot_prompt TEXT,
-                         initial_response TEXT,
-                         thinking TEXT,
-                         reflection TEXT,
-                         final_response TEXT,
-                         created_at TIMESTAMP,
-                         tags TEXT)''')
-            conn.commit()
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS snapshots (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    snapshot_name TEXT,
+                    user_prompt TEXT,
+                    system_prompt TEXT,
+                    model_name TEXT,
+                    cot_prompt TEXT,
+                    initial_response TEXT,
+                    thinking TEXT,
+                    reflection TEXT,
+                    final_response TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    tags TEXT
+                )
+            """)
 
     @safe_db_operation
     def save_snapshot(self, snapshot_data: Dict) -> str:
@@ -111,21 +112,51 @@ class SnapshotDB:
         except Exception as e:
             return f"Error: {str(e)}"
 
-    @safe_db_operation
-    def get_snapshots(self, search_term: str = None) -> List[Tuple]:
-        with sqlite3.connect(self.db_path) as conn:
-            c = conn.cursor()
-            if search_term:
-                query = '''SELECT * FROM snapshots 
-                          WHERE snapshot_name LIKE ? 
-                          OR user_prompt LIKE ? 
-                          OR tags LIKE ?
-                          ORDER BY created_at DESC'''
-                search_pattern = f'%{search_term}%'
-                c.execute(query, (search_pattern, search_pattern, search_pattern))
-            else:
-                c.execute('SELECT * FROM snapshots ORDER BY created_at DESC')
-            return c.fetchall()
+    def get_snapshots(self, search_term: str = "") -> List[List]:
+        """Get all snapshots, optionally filtered by search term."""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                
+                if search_term:
+                    query = """
+                        SELECT 
+                            id,             -- 0
+                            snapshot_name,   -- 1
+                            created_at,      -- 2
+                            model_name,      -- 3
+                            user_prompt,     -- 4
+                            tags            -- 5
+                        FROM snapshots
+                        WHERE snapshot_name LIKE ? 
+                           OR user_prompt LIKE ? 
+                           OR tags LIKE ?
+                        ORDER BY created_at DESC
+                    """
+                    search_pattern = f"%{search_term}%"
+                    cursor.execute(query, (search_pattern, search_pattern, search_pattern))
+                else:
+                    query = """
+                        SELECT 
+                            id,             -- 0
+                            snapshot_name,   -- 1
+                            created_at,      -- 2
+                            model_name,      -- 3
+                            user_prompt,     -- 4
+                            tags            -- 5
+                        FROM snapshots
+                        ORDER BY created_at DESC
+                    """
+                    cursor.execute(query)
+                
+                return cursor.fetchall()
+                
+        except sqlite3.Error as e:
+            print(f"Database error: {str(e)}")
+            return []
+        except Exception as e:
+            print(f"Error getting snapshots: {str(e)}")
+            return []
 
     @safe_db_operation
     def get_snapshot_by_id(self, snapshot_id: int) -> Optional[Dict[str, Any]]:
@@ -166,17 +197,56 @@ class SnapshotDB:
             print(f"Database retrieval error: {e}")
             return None
 
-    @safe_db_operation
-    def delete_selected_snapshots(self, selected_rows: List[List]) -> Tuple[str, List[List]]:
-        """Delete selected snapshots and return updated table data."""
+    def delete_snapshot(self, snapshot_id: int) -> Tuple[str, List[List]]:
+        """Delete a snapshot by its ID and return updated table data."""
         try:
+            if not isinstance(snapshot_id, (int, float)) or snapshot_id <= 0:
+                return "Invalid snapshot ID", self.get_snapshots()
+
             with sqlite3.connect(self.db_path) as conn:
-                c = conn.cursor()
-                for row in selected_rows:
-                    snapshot_id = row[0]  # First column is ID
-                    c.execute('DELETE FROM snapshots WHERE id = ?', (snapshot_id,))
+                cursor = conn.cursor()
+                
+                # Check if snapshot exists
+                cursor.execute("SELECT id FROM snapshots WHERE id = ?", (snapshot_id,))
+                if not cursor.fetchone():
+                    return f"Snapshot with ID {snapshot_id} not found", self.get_snapshots()
+                
+                # Delete the snapshot
+                cursor.execute("DELETE FROM snapshots WHERE id = ?", (snapshot_id,))
                 conn.commit()
-                return "✓ Selected snapshots deleted successfully", self.get_snapshots()
+                
+                # Get updated table data
+                return f"Snapshot {snapshot_id} deleted successfully", self.get_snapshots()
+                
+        except sqlite3.Error as e:
+            return f"Database error: {str(e)}", self.get_snapshots()
+        except Exception as e:
+            return f"Error deleting snapshot: {str(e)}", self.get_snapshots()
+
+    def delete_selected_snapshots(self, selected_data: List[List]) -> Tuple[str, List[List]]:
+        """
+        Delete selected snapshots from the database.
+        
+        Args:
+            selected_data: List of selected rows from the Gradio Dataframe
+            
+        Returns:
+            Tuple of (status_message: str, updated_table_data: List[List])
+        """
+        if not selected_data or not isinstance(selected_data, list):
+            return "No snapshots selected", self.get_snapshots()
+            
+        try:
+            deleted_count = 0
+            for row in selected_data:
+                if row and len(row) > 0:
+                    snapshot_id = row[0]  # First column is ID
+                    status, updated_data = self.delete_snapshot(snapshot_id)
+                    if status.startswith("Successfully"):
+                        deleted_count += 1
+            
+            return f"Successfully deleted {deleted_count} snapshot(s)", updated_data
+            
         except Exception as e:
             return f"Error deleting snapshots: {str(e)}", self.get_snapshots()
 

@@ -12,8 +12,9 @@ AVAILABLE_MODELS = {
     "Claude 3.5 Sonnet":    ("vertex_ai",       "vertex_ai/claude-3-5-sonnet@20240620",     "us-east5"),
     "Llama 3.1 70B":        ("azure_ai",        "azure_ai/llama-3-1-70b-instruct",          "https://api-llama-3-1-70b-instruct-live-llsyids.swedencentral.models.ai.azure.com/"),
     "Llama 3.1 405B":       ("azure_ai",        "azure_ai/llama-3-1-405b-instruct",         "https://api-llama-3-1-405b-instruct-live-llsyids.eastus.models.ai.azure.com/"),
-    "Llama 3.3 70B":        ("azure_ai",        "azure_ai/llama-3-3-70b-instruct",          "https://api-llama-3-3-70b-instruct-teardown-llsyids.eastus.models.ai.azure.com/"),
-    "OpenAI gpt-4o":        ("azure_ai",        "azure_ai/gpt-4o",                          "https://swedencentral.api.cognitive.microsoft.com/openai/deployments/gpt-4o/chat/completions?api-version=2024-08-01-preview")
+    "Llama 3.3 70B":        ("azure_ai",        "azure_ai/llama-3-3-70b-instruct",          "https://api-llama-3-3-70b-instruct-live-llsyids.eastus.models.ai.azure.com"),
+    "OpenAI gpt-4o":        ("azure_ai",        "azure_ai/gpt-4o",                          "https://swedencentral.api.cognitive.microsoft.com/openai/deployments/gpt-4o/chat/completions?api-version=2024-08-01-preview"),
+    "AI21 Jamba 1.5 Large": ("azure_ai",        "azure_ai/AI21-Jamba-1-5-Large",            "https://AI21-Jamba-1-5-Large-hfrke.eastus.models.ai.azure.com/")
 }
 
 def get_model_response(model_name: str, prompt: str) -> str:

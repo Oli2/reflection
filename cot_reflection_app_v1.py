@@ -87,7 +87,7 @@ def process_question(file, user_prompt, system_prompt, cot_prompt, selected_mode
 
     except Exception as e:
         print(f"Process error: {str(e)}")
-        return user_prompt, f"An error occurred: {str(e)}", "", "", "", None  # No CoT prompt used, Final Output as empty string
+        return user_prompt, f"An error occurred: {str(e)}", "", "", "", None, None  # No CoT prompt used, Final Output as empty string
 
 def load_snapshot_by_id(snapshot_id: str) -> List[Optional[Any]]:
     """
@@ -134,15 +134,10 @@ def load_snapshot_by_id(snapshot_id: str) -> List[Optional[Any]]:
 def update_snapshots_table(search_term: str = "") -> List[List]:
     """
     Update the snapshots table with filtered results.
-    
-    Args:
-        search_term: Optional search term to filter snapshots
-        
-    Returns:
-        List of snapshot data for table display
+    Returns data in the format: [ID, Name, Created At, Model, Prompt, Tags]
     """
     snapshots = db.get_snapshots(search_term)
-    return [[s[0], s[1], s[10], s[4], s[2], s[11]] for s in snapshots]
+    return [[s[0], s[1], s[2], s[3], s[4], s[5]] for s in snapshots]
 
 # Gradio interface
 with gr.Blocks(theme=gr.themes.Soft()) as iface:
@@ -151,29 +146,30 @@ with gr.Blocks(theme=gr.themes.Soft()) as iface:
         with gr.TabItem("Analysis"):
             with gr.Row():
                 with gr.Column():
-                    # Use the explicitly defined models list
                     model_selector = gr.Dropdown(
                         choices=get_available_models(),
-                        value="Gemini 2.0 Flash",  # Default model
+                        value="Gemini 2.0 Flash",
                         label="Select Model",
                         interactive=True,
                         info="Choose from the dropdown menu of the available LLMs"
                     )
                     
                     file_input = gr.File(
-                        label="Upload Document (DOCX or PDF)",
-                        file_types=[".docx", ".pdf"]
+                        label="Upload Document",
+                        file_types=["pdf", "docx"]
                     )
+                    
                     user_prompt = gr.Textbox(
                         lines=2,
                         label="User Prompt",
                         placeholder="Ask a question about the uploaded document..."
                     )
-                    # Checkbox to use default CoT prompt
+                    
                     use_default_cot = gr.Checkbox(
                         label="Use Default Chain of Thought Prompt",
                         value=False
                     )
+                    
                     submit_btn = gr.Button("Submit", variant="primary")
                     
                     with gr.Accordion("System and Chain-of-Thought Prompts", open=False):
@@ -188,13 +184,12 @@ with gr.Blocks(theme=gr.themes.Soft()) as iface:
                             value=default_cot_prompt
                         )
 
-
             with gr.Row():
-                user_prompt_output = gr.Textbox(label="1. User Prompt", interactive=False)
-                initial_response_output = gr.Textbox(label="2. Initial Response", interactive=False)
-                thinking_output = gr.Textbox(label="3. Thinking", interactive=False)
-                reflection_output = gr.Textbox(label="4. Reflection", interactive=False)
-                final_output = gr.Textbox(label="5. Final Output", interactive=False)
+                user_prompt_output = gr.Textbox(label="1. User Prompt")
+                initial_response_output = gr.Textbox(label="2. Initial Response")
+                thinking_output = gr.Textbox(label="3. Thinking")
+                reflection_output = gr.Textbox(label="4. Reflection")
+                final_output = gr.Textbox(label="5. Final Output")
 
             with gr.Row():
                 snapshot_name = gr.Textbox(
@@ -202,57 +197,59 @@ with gr.Blocks(theme=gr.themes.Soft()) as iface:
                     placeholder="Enter a name for this snapshot"
                 )
                 tags_input = gr.Textbox(
-                    label="Tags (comma-separated)",
+                    label="Tags",
                     placeholder="tag1, tag2, tag3"
                 )
-                save_btn = gr.Button("💾 Save Snapshot", variant="secondary")
+                save_btn = gr.Button("💾 Save", variant="secondary")
 
             with gr.Row():
-                snapshot_status = gr.Textbox(
-                    label="Status",
-                    interactive=False
-                )
+                snapshot_status = gr.Textbox(label="Status")
 
         # Saved Snapshots Tab
         with gr.TabItem("Saved Snapshots"):
             with gr.Row():
                 search_box = gr.Textbox(
-                    label="Search Snapshots",
-                    placeholder="Search by name, prompt, or tags..."
+                    label="Search",
+                    placeholder="Search snapshots..."
                 )
             
             snapshots_table = gr.Dataframe(
                 headers=["ID", "Name", "Created At", "Model", "Prompt", "Tags"],
-                interactive=True,
                 label="Saved Snapshots",
                 value=update_snapshots_table(),
-                type="array",
-                datatype=["number", "str", "str", "str", "str", "str"]
+                wrap=True,
+                row_count=5
             )
             
             with gr.Row():
-                snapshot_id_input = gr.Textbox(
-                    label="Enter Snapshot ID to Load",
-                    placeholder="Enter the ID of the snapshot you want to load"
+                # Using gr.Number() for integer input
+                snapshot_id_input = gr.Number(
+                    label="Snapshot ID",
+                    precision=0,
+                    minimum=1,
+                    step=1
                 )
-                load_btn = gr.Button("📂 Load Snapshot by ID", variant="primary")
-                refresh_btn = gr.Button("🔄 Refresh", variant="secondary")
-                delete_btn = gr.Button("🗑️ Delete Selected", variant="secondary")
-                export_btn = gr.Button("📤 Export", variant="secondary")
+                
+                with gr.Row():
+                    load_btn = gr.Button("📂 Load", variant="primary")
+                    refresh_btn = gr.Button("🔄 Refresh", variant="secondary")
+                    delete_btn = gr.Button("🗑️ Delete", variant="secondary")
+                    export_btn = gr.Button("📤 Export", variant="secondary")
             
-            with gr.Row():
-                operation_status = gr.Textbox(
-                    label="Operation Status",
-                    interactive=False
-                )
+            operation_status = gr.Textbox(label="Status")
 
     # Connect components
     submit_btn.click(
-        fn=lambda *args: process_question(*args) if args[4] in get_available_models() else 
-            (args[0], "Error: Invalid model selected", "", "", "", args[2], args[3], args[5]),
-        inputs=[file_input, user_prompt, system_prompt, cot_prompt, model_selector, use_default_cot],
-        outputs=[user_prompt_output, initial_response_output, thinking_output, 
-                reflection_output, final_output, system_prompt, cot_prompt]
+        fn=process_question,
+        inputs=[
+            file_input, user_prompt, system_prompt, 
+            cot_prompt, model_selector, use_default_cot
+        ],
+        outputs=[
+            user_prompt_output, initial_response_output, 
+            thinking_output, reflection_output, final_output, 
+            system_prompt, cot_prompt
+        ]
     )
     
     save_btn.click(
@@ -271,33 +268,19 @@ with gr.Blocks(theme=gr.themes.Soft()) as iface:
             }),
             update_snapshots_table()
         ),
-        inputs=[snapshot_name, user_prompt_output, system_prompt, 
-                model_selector, cot_prompt, initial_response_output,
-                thinking_output, reflection_output, final_output, tags_input],
+        inputs=[
+            snapshot_name, user_prompt_output, system_prompt, 
+            model_selector, cot_prompt, initial_response_output,
+            thinking_output, reflection_output, final_output, 
+            tags_input
+        ],
         outputs=[snapshot_status, snapshots_table]
     )
     
-    load_btn.click(
-        fn=load_snapshot_by_id,
+    delete_btn.click(
+        fn=lambda snapshot_id: db.delete_snapshot(int(snapshot_id)) if snapshot_id is not None else ("Please enter a snapshot ID", update_snapshots_table()),
         inputs=[snapshot_id_input],
-        outputs=[
-            snapshot_name,           # Snapshot name
-            user_prompt,             # User prompt
-            system_prompt,           # System prompt
-            model_selector,          # Model name
-            cot_prompt,              # Chain of thought prompt
-            initial_response_output, # Initial response
-            thinking_output,         # Thinking process
-            reflection_output,       # Reflection
-            final_output,           # Final response
-            operation_status        # Status message
-        ]
-    )
-    
-    search_box.change(
-        fn=update_snapshots_table,
-        inputs=[search_box],
-        outputs=snapshots_table
+        outputs=[operation_status, snapshots_table]
     )
     
     refresh_btn.click(
@@ -306,17 +289,16 @@ with gr.Blocks(theme=gr.themes.Soft()) as iface:
         outputs=snapshots_table
     )
     
-    delete_btn.click(
-        fn=lambda *args: db.delete_selected_snapshots(*args),
-        inputs=[snapshots_table],
-        outputs=[operation_status, snapshots_table]
+    search_box.change(
+        fn=update_snapshots_table,
+        inputs=[search_box],
+        outputs=snapshots_table
     )
     
     export_btn.click(
-        fn=lambda: db.export_snapshots(),
-        inputs=[],
+        fn=lambda: (db.export_snapshots(), "Export completed successfully")[1],
         outputs=operation_status
     )
 
 if __name__ == "__main__":
-    iface.launch(share=False)
+    iface.launch(share=True)
