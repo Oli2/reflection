@@ -13,6 +13,8 @@ from cot_reflection_file import (
 )
 from document_utils import read_document
 from db_utils import SnapshotDB
+import PyPDF2
+from docx import Document
 
 # Initialize database
 db = SnapshotDB()
@@ -33,10 +35,10 @@ def process_question(file, user_prompt, system_prompt, cot_prompt, selected_mode
     Args:
         file: Optional document file
         user_prompt: User's question
-        system_prompt: System context
-        cot_prompt: Chain of thought prompt
+        system_prompt: System context (can be default or customized)
+        cot_prompt: Chain of thought prompt (can be default or customized)
         selected_model: Name of selected model
-        use_default_cot: Boolean indicating if default CoT prompt should be used
+        use_default_cot: Boolean indicating if CoT processing should be used
         
     Returns:
         Tuple of processed outputs
@@ -49,20 +51,34 @@ def process_question(file, user_prompt, system_prompt, cot_prompt, selected_mode
         # Read document content if file is provided
         document_content = None
         if file is not None:
-            document_content = read_document(file.name)
+            try:
+                import io
+                file_obj = io.BytesIO(file)
+                
+                try:
+                    pdf_reader = PyPDF2.PdfReader(file_obj)
+                    document_content = '\n'.join(page.extract_text() for page in pdf_reader.pages)
+                except:
+                    file_obj.seek(0)
+                    doc = Document(file_obj)
+                    document_content = '\n'.join(paragraph.text for paragraph in doc.paragraphs)
+            except Exception as e:
+                raise ValueError("Error reading document. Please ensure it's a valid PDF or DOCX file.")
 
-        # If the checkbox is checked, use CoT logic
+        # Prepare document content string if document was provided
+        doc_content = f"Document Content:\n{document_content}\n\n" if document_content else ""
+        
         if use_default_cot:
-            # If the checkbox is checked, generate an initial response without CoT
-            doc_content = f"Document Content:\n{document_content}\n\n" if document_content else ""
+            # Generate initial response without reasoning
             initial_response_prompt = (f"{system_prompt}\n\n{doc_content}"
-                                       f"Question: {user_prompt}\n\n"
-                                       "Provide a concise answer to this question without any explanation or reasoning.")
-            initial_response = get_model_response(selected_model, initial_response_prompt)            
-            # Get thinking, reflection, and output from cot_reflection
+                                     f"Question: {user_prompt}\n\n"
+                                     "Provide a concise answer to this question without any explanation or reasoning.")
+            initial_response = get_model_response(selected_model, initial_response_prompt)
+            
+            # Use CoT processing with the current cot_prompt (either default or customized)
             thinking, reflection, output = cot_reflection(
                 system_prompt=system_prompt,
-                cot_prompt=default_cot_prompt,  # Use default CoT prompt
+                cot_prompt=cot_prompt,  # This will be either default or customized version
                 question=user_prompt,
                 document_content=document_content,
                 model_name=selected_model
@@ -72,22 +88,22 @@ def process_question(file, user_prompt, system_prompt, cot_prompt, selected_mode
             thinking_match = re.search(r'<thinking>(.*?)</thinking>', thinking, re.DOTALL)
             actual_thinking = thinking_match.group(1).strip() if thinking_match else thinking
 
-            # Return all outputs related to CoT
-            return user_prompt, initial_response, actual_thinking, reflection, output, system_prompt, default_cot_prompt
+            # Return full CoT processing results
+            return user_prompt, initial_response, actual_thinking, reflection, output, system_prompt, cot_prompt
+            
         else:
-            # If the checkbox is not checked, generate a response without CoT
-            doc_content = f"Document Content:\n{document_content}\n\n" if document_content else ""
-            initial_response_prompt = (f"{system_prompt}\n\n{doc_content}"
-                                       f"Question: {user_prompt}\n\n"
-                                       "Provide a concise answer to this question without any explanation or reasoning.")
-            initial_response = get_model_response(selected_model, initial_response_prompt)
-
-            # Return only the user prompt and initial response, with empty strings for CoT outputs
-            return user_prompt, initial_response, "", "", "", system_prompt, None  # No CoT prompt used, Final Output as empty string
+            # When use_default_cot is False, only use system prompt without CoT
+            direct_response_prompt = (f"{system_prompt}\n\n{doc_content}"
+                                    f"Question: {user_prompt}\n\n"
+                                    "Analyze the question and provide a comprehensive answer.")
+            
+            direct_response = get_model_response(selected_model, direct_response_prompt)
+            
+            # Return response without CoT components
+            return user_prompt, direct_response, "", "", "", system_prompt, None
 
     except Exception as e:
-        print(f"Process error: {str(e)}")
-        return user_prompt, f"An error occurred: {str(e)}", "", "", "", None, None  # No CoT prompt used, Final Output as empty string
+        return user_prompt, f"An error occurred: {str(e)}", "", "", "", None, None
 
 def load_snapshot_by_id(snapshot_id: str) -> List[Optional[Any]]:
     """
@@ -97,7 +113,9 @@ def load_snapshot_by_id(snapshot_id: str) -> List[Optional[Any]]:
         snapshot_id: ID of the snapshot to load
         
     Returns:
-        List of values for Gradio components in correct order
+        List of values for Gradio components in correct order:
+        [snapshot_name, user_prompt, system_prompt, model_name, cot_prompt,
+         initial_response, thinking, reflection, final_response, status_message]
     """
     try:
         if not snapshot_id:
@@ -128,7 +146,6 @@ def load_snapshot_by_id(snapshot_id: str) -> List[Optional[Any]]:
             "✓ Snapshot loaded successfully"                 # Status message
         ]
     except Exception as e:
-        print(f"Load error: {str(e)}")
         return [None] * 9 + [f"Error loading snapshot: {str(e)}"]
 
 def update_snapshots_table(search_term: str = "") -> List[List]:
@@ -138,6 +155,35 @@ def update_snapshots_table(search_term: str = "") -> List[List]:
     """
     snapshots = db.get_snapshots(search_term)
     return [[s[0], s[1], s[2], s[3], s[4], s[5]] for s in snapshots]
+
+def export_snapshot(snapshot_id: int) -> str:
+    """
+    Export a single snapshot as JSON and return its content.
+    
+    Args:
+        snapshot_id: ID of the snapshot to export
+        
+    Returns:
+        JSON string of the snapshot content
+    """
+    try:
+        if not snapshot_id:
+            return "Please enter a snapshot ID to export"
+            
+        # Get snapshot data from database
+        snapshot_data = db.get_snapshot_by_id(int(snapshot_id))
+        
+        if not snapshot_data:
+            return "Snapshot not found"
+            
+        # Convert snapshot to formatted JSON string
+        json_content = json.dumps(snapshot_data, indent=2, ensure_ascii=False)
+        
+        # Return JSON content to be displayed in popup
+        return json_content
+        
+    except Exception as e:
+        return f"Error exporting snapshot: {str(e)}"
 
 # Gradio interface
 with gr.Blocks(theme=gr.themes.Soft()) as iface:
@@ -156,7 +202,8 @@ with gr.Blocks(theme=gr.themes.Soft()) as iface:
                     
                     file_input = gr.File(
                         label="Upload Document",
-                        file_types=["pdf", "docx"]
+                        file_types=["pdf", "docx"],
+                        type="binary"
                     )
                     
                     user_prompt = gr.Textbox(
@@ -222,7 +269,6 @@ with gr.Blocks(theme=gr.themes.Soft()) as iface:
             )
             
             with gr.Row():
-                # Using gr.Number() for integer input
                 snapshot_id_input = gr.Number(
                     label="Snapshot ID",
                     precision=0,
@@ -235,6 +281,12 @@ with gr.Blocks(theme=gr.themes.Soft()) as iface:
                     refresh_btn = gr.Button("🔄 Refresh", variant="secondary")
                     delete_btn = gr.Button("🗑️ Delete", variant="secondary")
                     export_btn = gr.Button("📤 Export", variant="secondary")
+            
+            # JSON output
+            json_output = gr.JSON(
+                label="Snapshot Content",
+                visible=False  # Initially hidden
+            )
             
             operation_status = gr.Textbox(label="Status")
 
@@ -295,10 +347,53 @@ with gr.Blocks(theme=gr.themes.Soft()) as iface:
         outputs=snapshots_table
     )
     
+    # Update the export button click handler
+    def handle_export(snapshot_id):
+        """
+        Handle the export button click.
+        
+        Args:
+            snapshot_id: ID of the snapshot to export
+            
+        Returns:
+            Tuple of (json_content, status_message)
+        """
+        if not snapshot_id:
+            return gr.update(visible=False, value=None), "Please enter a snapshot ID to export"
+        try:
+            json_content = export_snapshot(snapshot_id)
+            # Try to parse the JSON string to ensure it's valid
+            parsed_json = json.loads(json_content)
+            return gr.update(visible=True, value=parsed_json), "Export successful"
+        except Exception as e:
+            return gr.update(visible=False, value=None), f"Export failed: {str(e)}"
+
     export_btn.click(
-        fn=lambda: (db.export_snapshots(), "Export completed successfully")[1],
-        outputs=operation_status
+        fn=handle_export,
+        inputs=[snapshot_id_input],
+        outputs=[
+            json_output,
+            operation_status
+        ]
+    )
+
+    # Add the load button click event handler
+    load_btn.click(
+        fn=load_snapshot_by_id,
+        inputs=[snapshot_id_input],
+        outputs=[
+            snapshot_name,
+            user_prompt,
+            system_prompt,
+            model_selector,
+            cot_prompt,
+            initial_response_output,
+            thinking_output,
+            reflection_output,
+            final_output,
+            operation_status
+        ]
     )
 
 if __name__ == "__main__":
-    iface.launch(share=True)
+    iface.launch(share=False)
