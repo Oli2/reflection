@@ -51,14 +51,17 @@ class SnapshotData:
         )
 
 class SnapshotDB:
-    def __init__(self, db_path: str = "prompts_snapshots.db"):
+    def __init__(self, db_path="prompts_snapshots.db"):
         self.db_path = db_path
-        self._init_db()
+        self.init_db()
 
-    def _init_db(self):
-        """Initialize database with required tables"""
+    def init_db(self):
+        """Initialize database with both snapshots and evaluations tables"""
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""
+            cursor = conn.cursor()
+            
+            # Existing snapshots table remains unchanged
+            cursor.execute('''
                 CREATE TABLE IF NOT EXISTS snapshots (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     snapshot_name TEXT,
@@ -73,7 +76,25 @@ class SnapshotDB:
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     tags TEXT
                 )
-            """)
+            ''')
+            
+            # Add new evaluations table
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS evaluations (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    snapshot1_id INTEGER,
+                    snapshot2_id INTEGER,
+                    judge_model TEXT,
+                    compared_aspects TEXT,  -- JSON string of selected aspects
+                    evaluation_criteria TEXT,  -- JSON string of customized criteria
+                    numerical_scores TEXT,  -- JSON string of scores
+                    qualitative_analysis TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (snapshot1_id) REFERENCES snapshots(id),
+                    FOREIGN KEY (snapshot2_id) REFERENCES snapshots(id)
+                )
+            ''')
+            conn.commit()
 
     @safe_db_operation
     def save_snapshot(self, snapshot_data: Dict) -> str:
@@ -273,3 +294,109 @@ class SnapshotDB:
                 snapshot_list.append(snapshot_dict)
             return json.dumps(snapshot_list, indent=2)
         return "Unsupported export format"
+
+    # Add new methods for evaluation operations
+    def save_evaluation(self, evaluation_data: Dict) -> Tuple[bool, str]:
+        """Save a new evaluation"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    INSERT INTO evaluations (
+                        snapshot1_id,
+                        snapshot2_id,
+                        judge_model,
+                        compared_aspects,
+                        evaluation_criteria,
+                        numerical_scores,
+                        qualitative_analysis
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    evaluation_data['snapshot1_id'],
+                    evaluation_data['snapshot2_id'],
+                    evaluation_data['judge_model'],
+                    json.dumps(evaluation_data['compared_aspects']),
+                    json.dumps(evaluation_data['evaluation_criteria']),
+                    json.dumps(evaluation_data['numerical_scores']),
+                    evaluation_data['qualitative_analysis']
+                ))
+                conn.commit()
+                return True, "Evaluation saved successfully"
+        except Exception as e:
+            return False, f"Error saving evaluation: {str(e)}"
+
+    def get_evaluation_by_id(self, evaluation_id: int) -> Optional[Dict]:
+        """Retrieve an evaluation by ID"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT * FROM evaluations WHERE id = ?
+                ''', (evaluation_id,))
+                row = cursor.fetchone()
+                
+                if row:
+                    evaluation = dict(row)
+                    # Parse JSON strings back to Python objects
+                    evaluation['compared_aspects'] = json.loads(evaluation['compared_aspects'])
+                    evaluation['evaluation_criteria'] = json.loads(evaluation['evaluation_criteria'])
+                    evaluation['numerical_scores'] = json.loads(evaluation['numerical_scores'])
+                    return evaluation
+                return None
+        except Exception as e:
+            print(f"Error retrieving evaluation: {str(e)}")
+            return None
+
+    def get_evaluations_for_snapshot(self, snapshot_id: int) -> List[Dict]:
+        """Get all evaluations involving a specific snapshot"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT * FROM evaluations 
+                    WHERE snapshot1_id = ? OR snapshot2_id = ?
+                    ORDER BY created_at DESC
+                ''', (snapshot_id, snapshot_id))
+                
+                evaluations = []
+                for row in cursor.fetchall():
+                    evaluation = dict(row)
+                    evaluation['compared_aspects'] = json.loads(evaluation['compared_aspects'])
+                    evaluation['evaluation_criteria'] = json.loads(evaluation['evaluation_criteria'])
+                    evaluation['numerical_scores'] = json.loads(evaluation['numerical_scores'])
+                    evaluations.append(evaluation)
+                return evaluations
+        except Exception as e:
+            print(f"Error retrieving evaluations: {str(e)}")
+            return []
+
+    def get_recent_evaluations(self, limit: int = 5) -> List[Dict]:
+        """Get most recent evaluations"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT e.*, 
+                           s1.snapshot_name as snapshot1_name,
+                           s2.snapshot_name as snapshot2_name
+                    FROM evaluations e
+                    JOIN snapshots s1 ON e.snapshot1_id = s1.id
+                    JOIN snapshots s2 ON e.snapshot2_id = s2.id
+                    ORDER BY e.created_at DESC
+                    LIMIT ?
+                ''', (limit,))
+                
+                evaluations = []
+                for row in cursor.fetchall():
+                    evaluation = dict(row)
+                    evaluation['compared_aspects'] = json.loads(evaluation['compared_aspects'])
+                    evaluation['evaluation_criteria'] = json.loads(evaluation['evaluation_criteria'])
+                    evaluation['numerical_scores'] = json.loads(evaluation['numerical_scores'])
+                    evaluations.append(evaluation)
+                return evaluations
+        except Exception as e:
+            print(f"Error retrieving recent evaluations: {str(e)}")
+            return []
