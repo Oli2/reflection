@@ -187,6 +187,21 @@ def export_snapshot(snapshot_id: int) -> str:
 
 # Gradio interface
 with gr.Blocks(theme=gr.themes.Soft()) as iface:
+    # Add logo and title at the top
+    with gr.Row():
+        gr.Image(
+            value="/Users/tomc/git/reflection/images/Linklaters.svg.png",
+            height=30,
+            show_label=False,
+            container=False
+        )
+    
+    gr.Markdown(
+        "<div style='text-align: center; color: magenta; margin-bottom: 20px;'>"
+        "Contract Analysis Workbench Prototype"
+        "</div>"
+    )
+
     with gr.Tabs():
         # Analysis Tab
         with gr.TabItem("Analysis"):
