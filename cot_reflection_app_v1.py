@@ -203,43 +203,6 @@ def default_evaluation_prompt():
     4. Overall recommendation
     """
 
-# def create_evaluation_prompt(content1: str, content2: str, metrics: List[str], custom_criteria: str) -> str:
-#     """Create the evaluation prompt for the judge model"""
-#     return f"""
-#     {custom_criteria}
-
-#     === FIRST RESPONSE ===
-#     {content1}
-
-#     === SECOND RESPONSE ===
-#     {content2}
-
-#     Please evaluate these responses focusing on these specific metrics: {', '.join(metrics)}
-    
-#     For each metric, provide:
-#     1. A numerical score (1-10)
-#     2. Detailed justification with specific examples
-#     3. Suggestions for improvement
-
-#     Format your response as follows:
-    
-#     NUMERICAL SCORES:
-#     - Metric1: X/10
-#     - Metric2: Y/10
-#     ...
-
-#     QUALITATIVE ANALYSIS:
-#     [Your detailed analysis here]
-
-#     COMPARISON SUMMARY:
-#     - Strengths of First Response:
-#     - Strengths of Second Response:
-#     - Areas for Improvement (First):
-#     - Areas for Improvement (Second):
-
-#     OVERALL RECOMMENDATION:
-#     [Your final recommendation]
-#     """
 def create_evaluation_prompt(content1: str, content2: str, metrics: List[str], custom_criteria: str) -> str:
     """Create the evaluation prompt for the judge model"""
     return f"""
@@ -295,7 +258,7 @@ Required Output Format
 	4.	Overall Recommendation
 	•	Which response is preferable (or whether they are equally strong), supported by a brief rationale.
 
-Example of What the Judge LLM’s Final Output Might Look Like
+Example of What the Judge LLM's Final Output Might Look Like
 
 	Summaries
 Response A: Summarizes key points and overall conclusion.
@@ -315,7 +278,7 @@ Response B: Summarizes key points and overall conclusion.
 	•	Response B provides Z but lacks detail on Q.
 
 	Overall Recommendation
-		•	e.g., “Response A is generally stronger due to better completeness and reasoning quality.”
+		•	e.g., "Response A is generally stronger due to better completeness and reasoning quality."
 
 Notes & Best Practices
 	•	Keep Chain-of-Thought Internal: While you should use step-by-step reasoning to evaluate the responses thoroughly, do not reveal your entire thought process in the final answer. Summaries and succinct justifications are sufficient for the user.
@@ -436,8 +399,8 @@ with gr.Blocks(
     )
 
     with gr.Tabs():
-        # Analysis Tab
-        with gr.TabItem("Analysis"):
+        # 1. Rename "Analysis" to "Prompt Wizard"
+        with gr.TabItem("Prompt Wizard"):
             with gr.Row():
                 with gr.Column():
                     model_selector = gr.Dropdown(
@@ -448,13 +411,19 @@ with gr.Blocks(
                         info="Choose from the dropdown menu of the available LLMs"
                     )
                     
-                    # Make document upload optional and expandable
                     with gr.Accordion("Upload Document (Optional)", open=False):
                         file_input = gr.File(
                             label="Upload Document",
                             file_types=["pdf", "docx"],
                             type="binary"
                         )
+                    
+                    # 2. Move system prompt here, above user prompt
+                    system_prompt = gr.Textbox(
+                        lines=2,
+                        label="System Prompt",
+                        value=default_system_prompt
+                    )
                     
                     user_prompt = gr.Textbox(
                         lines=2,
@@ -469,12 +438,8 @@ with gr.Blocks(
                     
                     submit_btn = gr.Button("Submit", variant="primary")
                     
-                    with gr.Accordion("System and Chain-of-Thought Prompts", open=False):
-                        system_prompt = gr.Textbox(
-                            lines=2,
-                            label="System Prompt",
-                            value=default_system_prompt
-                        )
+                    # 2. Rename accordion and remove system prompt from it
+                    with gr.Accordion("Chain-of-Thought Prompt", open=False):
                         cot_prompt = gr.Textbox(
                             lines=4,
                             label="Chain of Thought Prompt",
