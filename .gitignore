@@ -27,6 +27,7 @@ share/python-wheels/
 MANIFEST
 bash.sh
 app_config.py
+prompts_snapshots.db
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
