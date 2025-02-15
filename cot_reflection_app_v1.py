@@ -9,12 +9,14 @@ from cot_reflection_file import (
     cot_prompt as default_cot_prompt, 
     system_prompt as default_system_prompt,
     get_model_response,
-    AVAILABLE_MODELS
+    AVAILABLE_MODELS,
+    get_model_params
 )
 from document_utils import read_document
 from db_utils import SnapshotDB
 import PyPDF2
 from docx import Document
+import time
 
 # Initialize database
 db = SnapshotDB()
@@ -28,7 +30,7 @@ def get_available_models() -> List[str]:
     """
     return list(AVAILABLE_MODELS.keys())
 
-def process_question(file, user_prompt, system_prompt, cot_prompt, selected_model, use_default_cot):
+def process_question(file, user_prompt, system_prompt, cot_prompt, selected_model, use_default_cot, temperature, top_p):
     """
     Process user question using selected model and prompts.
     
@@ -39,6 +41,8 @@ def process_question(file, user_prompt, system_prompt, cot_prompt, selected_mode
         cot_prompt: Chain of thought prompt (can be default or customized)
         selected_model: Name of selected model
         use_default_cot: Boolean indicating if CoT processing should be used
+        temperature: Temperature parameter for response generation
+        top_p: Top-p parameter for response generation
         
     Returns:
         Tuple of processed outputs
@@ -73,7 +77,7 @@ def process_question(file, user_prompt, system_prompt, cot_prompt, selected_mode
             initial_response_prompt = (f"{system_prompt}\n\n{doc_content}"
                                      f"Question: {user_prompt}\n\n"
                                      "Provide a concise answer to this question without any explanation or reasoning.")
-            initial_response = get_model_response(selected_model, initial_response_prompt)
+            initial_response = get_model_response(selected_model, initial_response_prompt, temperature, top_p)
             
             # Use CoT processing with the current cot_prompt (either default or customized)
             thinking, reflection, output = cot_reflection(
@@ -81,7 +85,9 @@ def process_question(file, user_prompt, system_prompt, cot_prompt, selected_mode
                 cot_prompt=cot_prompt,  # This will be either default or customized version
                 question=user_prompt,
                 document_content=document_content,
-                model_name=selected_model
+                model_name=selected_model,
+                temperature=temperature,
+                top_p=top_p
             )
 
             # Extract the actual thinking content
@@ -97,7 +103,7 @@ def process_question(file, user_prompt, system_prompt, cot_prompt, selected_mode
                                     f"Question: {user_prompt}\n\n"
                                     "Analyze the question and provide a comprehensive answer.")
             
-            direct_response = get_model_response(selected_model, direct_response_prompt)
+            direct_response = get_model_response(selected_model, direct_response_prompt, temperature, top_p)
             
             # Return response without CoT components
             return user_prompt, direct_response, "", "", "", system_prompt, None
@@ -203,103 +209,65 @@ def default_evaluation_prompt():
     4. Overall recommendation
     """
 
-def create_evaluation_prompt(content1: str, content2: str, metrics: List[str], custom_criteria: str) -> str:
-    """Create the evaluation prompt for the judge model"""
+def create_evaluation_prompt(content1: str, content2: str, metrics: List[str], custom_criteria: str, model1_name: str, model2_name: str) -> str:
+    """Create the evaluation prompt for the judge model with model names"""
     return f"""
     {custom_criteria}
 
-    === RESPONSE A ===
+    === Response by {model1_name} ===
     {content1}
 
-    === RESPONSE B===
+    === Response by {model2_name} ===
     {content2}
 
     Please evaluate these responses focusing on these specific metrics: {', '.join(metrics)}
+    When referring to the responses in your analysis, use "Response by {model1_name}" and "Response by {model2_name}" respectively.
     
-
-System / Instruction to Judge LLM:
-You are an impartial expert evaluator. You will be given two responses (Response A and Response B) to a prompt. Your task is to assess and compare these responses on several metrics. Follow the instructions below carefully, using a detailed internal chain-of-thought to arrive at your conclusions. However, only provide your final, summarized justifications in your written output—do not reveal the entire chain-of-thought.
-
-Step-by-Step Evaluation Process (Internal)
-	1.	Read the Two Responses
-	•	Carefully read both Response A and Response B.
-	•	Internally identify key points, strengths, and potential shortcomings.
-	2.	Summarize Each Response
-	•	In your own words, create a concise summary of what each response is saying or proposing.
-	3.	Evaluate Each Response Across these specific metrics: {', '.join(metrics)}
-For each metric, assign a score from 1 (very poor) to 10 (excellent).
-	•	Clarity: How clear, understandable, and well-expressed is the response?
-	•	Completeness: To what extent does it address all aspects of the topic/question?
-	•	Accuracy: How reliable, correct, and factually sound is the information provided?
-	•	Reasoning Quality: Is the explanation or argument well-structured and logical?
-	•	Practical Applicability: How useful or actionable is the response for real-world application?
-	4.	Justify Each Score
-	•	Provide a brief but sufficiently detailed explanation for why you gave the score on each metric.
-	•	Highlight specific statements or reasoning steps within each response to illustrate your points.
-	5.	Compare Strengths and Weaknesses
-	•	Contrast the two responses across the five metrics.
-	•	Note distinct advantages or disadvantages one response may have over the other.
-	6.	Formulate an Overall Recommendation
-	•	Decide which response is superior, or state if they are equally strong.
-	•	Provide a concise rationale for your recommendation.
-	7.	Prepare a Final, Structured Output
-	•	Summarize your findings clearly for the user.
-	•	Include only your final justifications (do not reveal your full chain-of-thought).
-
-Required Output Format
-	1.	Summaries of Both Responses
-	•	A short, plain-language summary of Response A and Response B.
-	2.	Scores and Justifications
-	•	For each metric (Clarity, Completeness, Accuracy, Reasoning Quality, Practical Applicability), provide:
-	•	Score for Response A with a brief explanation.
-	•	Score for Response B with a brief explanation.
-	3.	Strengths and Weaknesses Comparison
-	•	A concise table or paragraph comparing the two responses, highlighting key strengths and weaknesses.
-	4.	Overall Recommendation
-	•	Which response is preferable (or whether they are equally strong), supported by a brief rationale.
-
-Example of What the Judge LLM's Final Output Might Look Like
-
-	Summaries
-Response A: Summarizes key points and overall conclusion.
-Response B: Summarizes key points and overall conclusion.
-
-	Scores and Justifications
-		•	Clarity:
-	•	Response A: 8/10 (Explanation)
-	•	Response B: 7/10 (Explanation)
-	•	Completeness:
-	•	Response A: 9/10 (Explanation)
-	•	Response B: 6/10 (Explanation)
-	•	(Repeat for Accuracy, Reasoning Quality, Practical Applicability)
-
-	Strengths and Weaknesses
-		•	Response A excels in X. It could improve on Y.
-	•	Response B provides Z but lacks detail on Q.
-
-	Overall Recommendation
-		•	e.g., "Response A is generally stronger due to better completeness and reasoning quality."
-
-Notes & Best Practices
-	•	Keep Chain-of-Thought Internal: While you should use step-by-step reasoning to evaluate the responses thoroughly, do not reveal your entire thought process in the final answer. Summaries and succinct justifications are sufficient for the user.
-	•	Maintain Impartiality: Provide unbiased, evidence-based assessments.
-	•	Be Specific and Concrete: When justifying scores, point to actual content from the responses to illustrate your reasoning.
-	•	Use Clear Language: The final output should be easily understandable to a broad range of users.
+    System / Instruction to Judge LLM:
+    You are an impartial expert evaluator. Your task is to assess and compare these responses on several metrics.
+    Follow these guidelines:
+    1. Always refer to responses as "Response by {model1_name}" and "Response by {model2_name}"
+    2. Provide scores and detailed justifications for each metric
+    3. Compare strengths and weaknesses
+    4. Give an overall recommendation
+    
+    Required Output Format:
+    1. Summaries
+       - Response by {model1_name}: [Summary]
+       - Response by {model2_name}: [Summary]
+    
+    2. Scores and Justifications
+       For each metric:
+       - Response by {model1_name}: [Score]/10 ([Justification])
+       - Response by {model2_name}: [Score]/10 ([Justification])
+    
+    3. Strengths and Weaknesses Comparison
+       - Response by {model1_name}: [Strengths] and [Areas for Improvement]
+       - Response by {model2_name}: [Strengths] and [Areas for Improvement]
+    
+    4. Overall Recommendation
+       [Clear statement of which response is stronger, with brief rationale]
     """
 
-def load_snapshot_previews(snapshot1_id: int, snapshot2_id: int, aspects: List[str]) -> Tuple[str, str]:
-    """Load and format selected aspects of two snapshots for preview"""
+def load_snapshot_previews(snapshot1_id: int, snapshot2_id: int, aspects: List[str]) -> Tuple[str, str, str, str]:
+    """
+    Load and format selected aspects of two snapshots for preview.
+    Returns tuple of (content1, content2, model1_name, model2_name)
+    """
     try:
-        # Validate inputs
         if not snapshot1_id or not snapshot2_id:
-            return "", ""
+            return "", "", "", ""
             
         # Get snapshots from database
         snap1 = db.get_snapshot_by_id(int(snapshot1_id))
         snap2 = db.get_snapshot_by_id(int(snapshot2_id))
         
         if not snap1 or not snap2:
-            return "Snapshot not found", "Snapshot not found"
+            return "Snapshot not found", "Snapshot not found", "", ""
+        
+        # Get model names from snapshots
+        model1_name = snap1.get('model_name', 'Unknown Model')
+        model2_name = snap2.get('model_name', 'Unknown Model')
         
         # Format previews
         def format_snapshot(snap: Dict) -> str:
@@ -313,70 +281,105 @@ def load_snapshot_previews(snapshot1_id: int, snapshot2_id: int, aspects: List[s
                     preview += f"=== Final Output ===\n{snap.get('final_response', '')}\n\n"
             return preview.strip()
         
-        return format_snapshot(snap1), format_snapshot(snap2)
+        return format_snapshot(snap1), format_snapshot(snap2), model1_name, model2_name
         
     except Exception as e:
-        return f"Error loading preview: {str(e)}", f"Error loading preview: {str(e)}"
+        return f"Error loading preview: {str(e)}", f"Error loading preview: {str(e)}", "", ""
 
-def evaluate_snapshots(
+def update_evaluation(
     snapshot1_id: int,
     snapshot2_id: int,
     aspects: List[str],
     judge_model: str,
-    metrics: List[str],
-    custom_criteria: str
-) -> Tuple[Dict, str]:
-    """Evaluate two snapshots using the specified model and criteria"""
+    predefined_metrics: List[str],
+    custom_criteria: str,
+    judge_temperature: float,
+    judge_top_p: float,
+    progress=gr.Progress()
+) -> str:  # Return type is now just str since we have single output
+    """
+    Performs the evaluation with progress updates.
+    Returns formatted evaluation summary.
+    """
     try:
-        # Validate inputs
-        if not snapshot1_id or not snapshot2_id:
-            return {}, "Please select both snapshots for comparison"
-            
-        # Get snapshots
-        snap1 = db.get_snapshot_by_id(int(snapshot1_id))
-        snap2 = db.get_snapshot_by_id(int(snapshot2_id))
+        # Step 1: Load snapshots (20%)
+        progress(0.2, desc="Loading snapshots...")
+        content1, content2, model1_name, model2_name = load_snapshot_previews(
+            snapshot1_id, snapshot2_id, aspects
+        )
+        if not content1 or not content2:
+            return "Error: Failed to load snapshots"
         
-        if not snap1 or not snap2:
-            return {}, "One or both snapshots not found"
-            
-        # Prepare content for comparison
-        content1 = ""
-        content2 = ""
-        
-        for aspect in aspects:
-            if aspect == "Thinking":
-                content1 += f"=== Thinking ===\n{snap1.get('thinking', '')}\n\n"
-                content2 += f"=== Thinking ===\n{snap2.get('thinking', '')}\n\n"
-            elif aspect == "Reflection":
-                content1 += f"=== Reflection ===\n{snap1.get('reflection', '')}\n\n"
-                content2 += f"=== Reflection ===\n{snap2.get('reflection', '')}\n\n"
-            elif aspect == "Final Output":
-                content1 += f"=== Final Output ===\n{snap1.get('final_response', '')}\n\n"
-                content2 += f"=== Final Output ===\n{snap2.get('final_response', '')}\n\n"
-        
-        # Create evaluation prompt
-        evaluation_prompt = create_evaluation_prompt(
-            content1=content1,
-            content2=content2,
-            metrics=metrics,
-            custom_criteria=custom_criteria
+        # Step 2: Create evaluation prompt (40%)
+        progress(0.4, desc="Creating evaluation prompt...")
+        eval_prompt = create_evaluation_prompt(
+            content1, content2, predefined_metrics, 
+            custom_criteria, model1_name, model2_name
         )
         
-        # Get evaluation from model
-        evaluation_response = get_model_response(judge_model, evaluation_prompt)
+        # Step 3: Get model response (70%)
+        progress(0.7, desc="Getting model evaluation...")
+        evaluation = get_model_response(
+            judge_model,
+            eval_prompt,
+            judge_temperature,
+            judge_top_p
+        )
         
-        # Parse numerical scores
-        scores = {}
-        for metric in metrics:
-            metric_name = metric.split(" (")[0]
-            match = re.search(f"{metric_name}[:\-]\s*(\d+)", evaluation_response)
-            if match:
-                scores[metric_name] = int(match.group(1))
+        # Step 4: Format response (90%)
+        progress(0.9, desc="Formatting evaluation...")
+        formatted_eval = f"""
+=================================================================
+                         EVALUATION SUMMARY                         
+=================================================================
+
+MODELS COMPARED
+-----------------------------------------------------------------
+• {model1_name} (Snapshot {snapshot1_id})
+• {model2_name} (Snapshot {snapshot2_id})
+
+EVALUATION SETTINGS
+-----------------------------------------------------------------
+• Judge Model: {judge_model}
+• Temperature: {judge_temperature}
+• Top-p: {judge_top_p}
+
+EVALUATION SCOPE
+-----------------------------------------------------------------
+• Metrics Evaluated: {', '.join(predefined_metrics)}
+• Aspects Compared: {', '.join(aspects)}
+
+ANALYSIS
+-----------------------------------------------------------------
+{evaluation}
+
+=================================================================
+"""
         
-        return scores, evaluation_response
+        # Step 5: Complete (100%)
+        progress(1.0, desc="Evaluation complete!")
+        return formatted_eval
         
     except Exception as e:
-        return {}, f"Error during evaluation: {str(e)}"
+        error_message = f"""
+=================================================================
+                         EVALUATION ERROR                          
+=================================================================
+
+An error occurred during evaluation: {str(e)}
+
+=================================================================
+"""
+        return error_message
+
+# Add this function definition before the Gradio interface
+def update_param_ranges(model_name):
+    """Update parameter ranges based on selected model"""
+    params = get_model_params(model_name)
+    return [
+        gr.update(minimum=params["temp_range"][0], maximum=params["temp_range"][1]),
+        gr.update(minimum=params["top_p_range"][0], maximum=params["top_p_range"][1])
+    ]
 
 # Gradio interface
 with gr.Blocks(
@@ -399,52 +402,76 @@ with gr.Blocks(
     )
 
     with gr.Tabs():
-        # 1. Rename "Analysis" to "Prompt Wizard"
         with gr.TabItem("Prompt Wizard"):
+            # First row for model selection and parameters side by side
             with gr.Row():
-                with gr.Column():
-                    model_selector = gr.Dropdown(
-                        choices=get_available_models(),
-                        value="Gemini 2.0 Flash",
-                        label="Select Model",
-                        interactive=True,
-                        info="Choose from the dropdown menu of the available LLMs"
-                    )
-                    
-                    with gr.Accordion("Upload Document (Optional)", open=False):
-                        file_input = gr.File(
-                            label="Upload Document",
-                            file_types=["pdf", "docx"],
-                            type="binary"
+                # Model selector column
+                with gr.Column(scale=1):
+                    with gr.Group():  # Changed from gr.Box() to gr.Group()
+                        model_selector = gr.Dropdown(
+                            choices=get_available_models(),
+                            value="Gemini 2.0 Flash",
+                            label="Select Model",
+                            interactive=True,
+                            info="Choose from the dropdown menu of the available LLMs",
+                            container=True
                         )
-                    
-                    # 2. Move system prompt here, above user prompt
-                    system_prompt = gr.Textbox(
-                        lines=2,
-                        label="System Prompt",
-                        value=default_system_prompt
+                # Model parameters column
+                with gr.Column(scale=1):
+                    with gr.Group():  # Changed from gr.Box() to gr.Group()
+                        with gr.Row():
+                            temperature = gr.Number(
+                                minimum=0.0,
+                                maximum=1.0,
+                                value=0.2,
+                                step=0.1,
+                                label="Temperature",
+                                info="Controls randomness (0.0 = deterministic, 1.0 = creative)"
+                            )
+                            top_p = gr.Number(
+                                minimum=0.0,
+                                maximum=1.0,
+                                value=0.95,
+                                step=0.05,
+                                label="Top-p",
+                                info="Controls diversity (lower = more focused)"
+                            )
+
+            # Second main column for other inputs
+            with gr.Column(scale=1):
+                with gr.Accordion("Upload Document (Optional)", open=False):
+                    file_input = gr.File(
+                        label="Upload Document",
+                        file_types=["pdf", "docx"],
+                        type="binary"
                     )
-                    
-                    user_prompt = gr.Textbox(
-                        lines=2,
-                        label="User Prompt",
-                        placeholder="Ask a question about the uploaded document..."
+                
+                system_prompt = gr.Textbox(
+                    lines=2,
+                    label="System Prompt",
+                    value=default_system_prompt
+                )
+                
+                user_prompt = gr.Textbox(
+                    lines=2,
+                    label="User Prompt",
+                    placeholder="Ask a question about the uploaded document..."
+                )
+                
+                use_default_cot = gr.Checkbox(
+                    label="Use Default Chain of Thought Prompt",
+                    value=False
+                )
+                
+                submit_btn = gr.Button("Submit", variant="primary")
+                
+                # 2. Rename accordion and remove system prompt from it
+                with gr.Accordion("Chain-of-Thought Prompt", open=False):
+                    cot_prompt = gr.Textbox(
+                        lines=4,
+                        label="Chain of Thought Prompt",
+                        value=default_cot_prompt
                     )
-                    
-                    use_default_cot = gr.Checkbox(
-                        label="Use Default Chain of Thought Prompt",
-                        value=False
-                    )
-                    
-                    submit_btn = gr.Button("Submit", variant="primary")
-                    
-                    # 2. Rename accordion and remove system prompt from it
-                    with gr.Accordion("Chain-of-Thought Prompt", open=False):
-                        cot_prompt = gr.Textbox(
-                            lines=4,
-                            label="Chain of Thought Prompt",
-                            value=default_cot_prompt
-                        )
 
             with gr.Row():
                 user_prompt_output = gr.Textbox(label="1. User Prompt")
@@ -505,9 +532,8 @@ with gr.Blocks(
             
             operation_status = gr.Textbox(label="Status")
 
-        # New Tab Implementation
+        # Snapshot Evaluator Tab
         with gr.TabItem("Snapshot Evaluator"):
-            # Section 1: Snapshots Table with smaller font
             with gr.Row():
                 search_box_eval = gr.Textbox(
                     label="Search Snapshots",
@@ -520,55 +546,72 @@ with gr.Blocks(
                 value=update_snapshots_table(),
                 wrap=True,
                 row_count=5,
-                elem_classes="small-font-table"  # Add custom CSS class
+                elem_classes="small-font-table"
             )
 
-            # Section 2: Comparison Setup
             with gr.Row():
                 snapshot1_id = gr.Number(
                     label="First Snapshot ID",
                     precision=0,
-                    minimum=None,  # Remove minimum constraint
-                    value=None,  # Empty by default
-                    scale=1
+                    value=None
                 )
                 snapshot2_id = gr.Number(
                     label="Second Snapshot ID",
                     precision=0,
-                    minimum=None,  # Remove minimum constraint
-                    value=None,  # Empty by default
-                    scale=1
+                    value=None
                 )
             
-            # Model and Aspects side by side
+            # Add comparison aspects selection with all options selected by default
+            comparison_aspects = gr.CheckboxGroup(
+                choices=["Thinking", "Reflection", "Final Output"],
+                label="Select Aspects to Compare",
+                value=["Thinking", "Reflection", "Final Output"]
+            )
+
+            # Model and parameters selection - directly below aspects
             with gr.Row():
                 with gr.Column(scale=1):
                     judge_model = gr.Dropdown(
                         choices=get_available_models(),
-                        label="Select Judge Model",
+                        label="Judge LLM",
                         value="Gemini 2.0 Flash"
                     )
                 with gr.Column(scale=1):
-                    comparison_aspects = gr.CheckboxGroup(
-                        choices=["Thinking", "Reflection", "Final Output"],
-                        label="Select Aspects to Compare",
-                        value=["Final Output"]
-                    )
+                    with gr.Row():
+                        judge_temperature = gr.Number(
+                            minimum=0.0,
+                            maximum=1.0,
+                            value=0.2,
+                            label="Temperature"
+                        )
+                        judge_top_p = gr.Number(
+                            minimum=0.0,
+                            maximum=1.0,
+                            value=0.95,
+                            label="Top-p"
+                        )
 
-            # Section 3: Preview (Side by Side)
+            # Preview section with model names
             with gr.Row():
                 with gr.Column():
+                    model1_name = gr.Textbox(
+                        label="Model 1",
+                        interactive=False
+                    )
                     preview1 = gr.TextArea(
                         label="First Snapshot Preview",
                         interactive=False
                     )
                 with gr.Column():
+                    model2_name = gr.Textbox(
+                        label="Model 2",
+                        interactive=False
+                    )
                     preview2 = gr.TextArea(
                         label="Second Snapshot Preview",
                         interactive=False
                     )
 
-            # Section 4: Evaluation Criteria
             with gr.Accordion("Evaluation Criteria", open=False):
                 predefined_metrics = gr.CheckboxGroup(
                     choices=[
@@ -579,35 +622,79 @@ with gr.Blocks(
                         "Practical Applicability (1-10)"
                     ],
                     label="Predefined Metrics",
-                    value=["Clarity (1-10)", "Completeness (1-10)"]
+                    value=[
+                        "Clarity (1-10)",
+                        "Completeness (1-10)",
+                        "Accuracy (1-10)",
+                        "Reasoning Quality (1-10)",
+                        "Practical Applicability (1-10)"
+                    ]
                 )
                 
-                custom_criteria = gr.TextArea(
+                custom_criteria = gr.Textbox(
                     label="Custom Evaluation Instructions",
-                    placeholder="Add your custom evaluation criteria here...",
-                    value=default_evaluation_prompt
+                    value=default_evaluation_prompt()
                 )
 
-            # Section 5: Evaluation Results
-            with gr.Row():
-                evaluate_btn = gr.Button("Evaluate", variant="primary")
-                export_eval_btn = gr.Button("Export Evaluation", variant="secondary")
-                save_eval_btn = gr.Button("Save Evaluation", variant="secondary")
+            evaluate_btn = gr.Button("Evaluate", variant="primary")
 
-            with gr.Row():
-                qualitative_analysis = gr.TextArea(
-                    label="Evaluation Results",
-                    interactive=False,
-                    show_copy_button=True,  # Enable one-click copy
-                    scale=2  # Make it wider
+            # Evaluation results - single textbox for evaluation summary
+            evaluation_summary = gr.Textbox(
+                label="Evaluation Summary",
+                value="",
+                show_copy_button=True,
+                lines=20,
+                interactive=False
+            )
+
+            # Connect row selection from table to snapshot IDs
+            def select_snapshot(evt: gr.SelectData):
+                selected_row = evt.index[0]
+                return selected_row + 1  # Assuming IDs start from 1
+
+            snapshots_table_eval.select(
+                fn=select_snapshot,
+                inputs=[],
+                outputs=[snapshot1_id]
+            )
+
+            # Connect preview updates
+            def update_previews(id1, id2, aspects):
+                if not id1 or not id2 or not aspects:
+                    return "", "", "", ""
+                return load_snapshot_previews(id1, id2, aspects)
+
+            # Connect the preview updates to relevant input changes
+            for component in [snapshot1_id, snapshot2_id, comparison_aspects]:
+                component.change(
+                    fn=update_previews,
+                    inputs=[snapshot1_id, snapshot2_id, comparison_aspects],
+                    outputs=[preview1, preview2, model1_name, model2_name]
                 )
+
+            # Connect the evaluate button
+            evaluate_btn.click(
+                fn=update_evaluation,
+                inputs=[
+                    snapshot1_id,
+                    snapshot2_id,
+                    comparison_aspects,
+                    judge_model,
+                    predefined_metrics,
+                    custom_criteria,
+                    judge_temperature,
+                    judge_top_p
+                ],
+                outputs=[evaluation_summary]  # Single output for evaluation summary
+            )
 
     # Connect components
     submit_btn.click(
         fn=process_question,
         inputs=[
             file_input, user_prompt, system_prompt, 
-            cot_prompt, model_selector, use_default_cot
+            cot_prompt, model_selector, use_default_cot,
+            temperature, top_p
         ],
         outputs=[
             user_prompt_output, initial_response_output, 
@@ -707,34 +794,11 @@ with gr.Blocks(
         ]
     )
 
-    # Preview update handler - triggers when aspects selection changes or IDs change
-    def update_previews(id1, id2, aspects):
-        if not id1 or not id2 or not aspects:
-            return "", ""
-        return load_snapshot_previews(id1, id2, aspects)
-
-    # Connect the preview updates
-    for component in [snapshot1_id, snapshot2_id, comparison_aspects]:
-        component.change(
-            fn=update_previews,
-            inputs=[snapshot1_id, snapshot2_id, comparison_aspects],
-            outputs=[preview1, preview2]
-        )
-
-    # Evaluation handler
-    evaluate_btn.click(
-        fn=lambda *args: (
-            evaluate_snapshots(*args)[1]  # Only return the qualitative analysis
-        ),
-        inputs=[
-            snapshot1_id,
-            snapshot2_id,
-            comparison_aspects,
-            judge_model,
-            predefined_metrics,
-            custom_criteria
-        ],
-        outputs=qualitative_analysis
+    # Update parameter ranges when judge model changes
+    judge_model.change(
+        fn=update_param_ranges,
+        inputs=[judge_model],
+        outputs=[judge_temperature, judge_top_p]
     )
 
     # Connect search box to table updates
@@ -743,6 +807,29 @@ with gr.Blocks(
         inputs=[search_box_eval],
         outputs=[snapshots_table_eval]
     )
+
+    # Add custom CSS for clearer markdown rendering and button styling.
+    gr.Markdown("""
+        <style>
+        .evaluation-results {
+            font-family: 'Arial', sans-serif;
+            line-height: 1.6;
+            padding: 25px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            margin: 20px 0;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .status-message {
+            color: #2196F3;
+            font-weight: bold;
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        </style>
+    """)
 
 if __name__ == "__main__":
     iface.launch(share=False)
