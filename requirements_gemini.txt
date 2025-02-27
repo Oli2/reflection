@@ -4,4 +4,6 @@ pydantic==2.6.4
 PyPDF2==3.0.1
 anthropic[vertex]
 litellm
+openai
+gradio>=4.0.0
 # weave==0.52.12
