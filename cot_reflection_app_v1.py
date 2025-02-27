@@ -476,9 +476,9 @@ with gr.Blocks(
             with gr.Row():
                 user_prompt_output = gr.Textbox(label="1. User Prompt")
                 initial_response_output = gr.Textbox(label="2. Initial Response")
-                thinking_output = gr.Textbox(label="3. Thinking")
-                reflection_output = gr.Textbox(label="4. Reflection")
-                final_output = gr.Textbox(label="5. Final Output")
+                thinking_output = gr.Textbox(label="3. Thinking", show_copy_button=True)
+                reflection_output = gr.Textbox(label="4. Reflection", show_copy_button=True)
+                final_output = gr.Textbox(label="5. Final Output", show_copy_button=True)
 
             with gr.Row():
                 snapshot_name = gr.Textbox(
@@ -522,7 +522,7 @@ with gr.Blocks(
                     load_btn = gr.Button("📂 Load", variant="primary")
                     refresh_btn = gr.Button("🔄 Refresh", variant="secondary")
                     delete_btn = gr.Button("🗑️ Delete", variant="secondary")
-                    export_btn = gr.Button("📤 Export", variant="secondary")
+                    export_btn = gr.Button("📤 Share", variant="secondary")
             
             # JSON output
             json_output = gr.JSON(
