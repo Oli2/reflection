@@ -10,15 +10,17 @@ from openai import AzureOpenAI
 AVAILABLE_MODELS = {
     "Gemini 2.0 Flash": {
         "provider": "vertex_ai",
-        "model_id": "vertex_ai/gemini-2.0-flash-exp",
-        "location": "us-central1",
+        "model_id": "vertex_ai/gemini-2.0-flash-001",
+        # "location": "us-central1",
+        "location": "europe-west1",
         "temp_range": (0.0, 1.0),
         "top_p_range": (0.0, 1.0)
     },
     "Claude 3.5 Sonnet": {
         "provider": "vertex_ai",
-        "model_id": "vertex_ai/claude-3-5-sonnet@20240620",
-        "location": "us-east5",
+        "model_id": "vertex_ai/claude-3-5-sonnet-v2@20241022",
+        # "location": "us-east5",
+        "location": "europe-west1",
         "temp_range": (0.0, 1.0),
         "top_p_range": (0.0, 1.0)
     },
@@ -50,6 +52,13 @@ AVAILABLE_MODELS = {
         "temp_range": (0.0, 1.0),
         "top_p_range": (0.0, 1.0)
     },
+    # "OpenAI gpt-o1": {
+    #     "provider": "azure_ai",
+    #     "model_id": "azure_ai/openai-o1-genaiteam-swec-live",
+    #     "location": "https://openai-genaiteam-swec-live.openai.azure.com",
+    #     "temp_range": (0.0, 1.0),
+    #     "top_p_range": (0.0, 1.0)
+    # },
     "AI21 Jamba 1.5 Large": {
         "provider": "azure_ai",
         "model_id": "azure_ai/AI21-Jamba-1-5-Large",
