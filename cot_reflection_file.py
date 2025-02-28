@@ -24,13 +24,13 @@ AVAILABLE_MODELS = {
         "temp_range": (0.0, 1.0),
         "top_p_range": (0.0, 1.0)
     },
-    "Llama 3.1 70B": {
-        "provider": "azure_ai",
-        "model_id": "azure_ai/llama-3-1-70b-instruct",
-        "location": "https://api-llama-3-1-70b-instruct-live-llsyids.swedencentral.models.ai.azure.com/",
-        "temp_range": (0.0, 2.0),
-        "top_p_range": (0.0, 1.0)
-    },
+    # "Llama 3.1 70B": {
+    #     "provider": "azure_ai",
+    #     "model_id": "azure_ai/llama-3-1-70b-instruct",
+    #     "location": "https://api-llama-3-1-70b-instruct-live-llsyids.swedencentral.models.ai.azure.com/",
+    #     "temp_range": (0.0, 2.0),
+    #     "top_p_range": (0.0, 1.0)
+    # },
     "Llama 3.1 405B": {
         "provider": "azure_ai",
         "model_id": "azure_ai/llama-3-1-405b-instruct",
@@ -52,13 +52,13 @@ AVAILABLE_MODELS = {
         "temp_range": (0.0, 1.0),
         "top_p_range": (0.0, 1.0)
     },
-    # "OpenAI gpt-o1": {
-    #     "provider": "azure_ai",
-    #     "model_id": "azure_ai/openai-o1-genaiteam-swec-live",
-    #     "location": "https://openai-genaiteam-swec-live.openai.azure.com",
-    #     "temp_range": (0.0, 1.0),
-    #     "top_p_range": (0.0, 1.0)
-    # },
+    "OpenAI gpt-o1": {
+        "provider": "azure_ai",
+        "model_id": "azure_ai/openai-o1-genaiteam-swec-live",
+        "location": "https://openai-genaiteam-swec-live.openai.azure.com",
+        "temp_range": (0.0, 1.0),
+        "top_p_range": (0.0, 1.0)
+    },
     "AI21 Jamba 1.5 Large": {
         "provider": "azure_ai",
         "model_id": "azure_ai/AI21-Jamba-1-5-Large",
