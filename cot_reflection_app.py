@@ -12,11 +12,9 @@ from cot_reflection_file import (
     AVAILABLE_MODELS,
     get_model_params
 )
-from document_utils import read_document
 from db_utils import SnapshotDB
 import PyPDF2
 from docx import Document
-import time
 
 # Initialize database
 db = SnapshotDB()
