@@ -8,7 +8,7 @@ WORKDIR /app
 COPY . /app
 
 # Create /user directory and move the gcp_service_account.json file there
-RUN mkdir -p /conf && mv /app/gcp_service_account.json /config/gcp_service_account.json
+RUN mkdir -p /config && mv /app/gcp_service_account.json /config/gcp_service_account.json
 
 # Install any needed packages specified in requirements.txt
 RUN pip install --no-cache-dir -r requirements_gemini.txt
