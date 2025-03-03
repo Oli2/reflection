@@ -1,0 +1,79 @@
+pr: none
+trigger:
+  branches:
+   include:
+     - main
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  - name: azureSubscription
+    value: 'GenAI-PipelineServicePrinciple'
+  - name: resourceGroupName
+    value: 'rg-cot-eu-dev'
+  - name: containerRegistryName
+    value: 'crcotahfggsdev'
+  - name: registry
+    value: 'crcotahfggsdev.azurecr.io'
+  - name: name
+    value: 'cot-gradio-app'
+  - name: tag
+    value: 'latest'
+  - name: imageName
+    value: $(registry)/$(name):$(tag)
+
+parameters:
+ - name: envName
+   displayName: "Execution Environment"
+   default: "dev"
+   
+stages:  
+  - stage: Build  
+    jobs:  
+      - job: Build  
+        steps:  
+          - task: UsePythonVersion@0  
+            inputs:  
+              versionSpec: '3.11'  
+              addToPath: true  
+            displayName: "Specify Python version"
+          
+          - script: |
+              echo "Building Docker image..."
+              docker build -t $(imageName) .
+            displayName: 'Build Docker Image'
+
+          - task: AzureCLI@2  
+            inputs:  
+              azureSubscription: $(azureSubscription)
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                az acr login --name $(containerRegistryName)
+
+                # Push Docker image  
+                docker push $(imageName)
+            displayName: 'Push Docker Image with Docker CLI'
+
+
+  - stage: DeployToDev
+    displayName: 'Deploy to Dev'
+    dependsOn: Build  
+    condition: succeeded()  
+    jobs:  
+      - job: Deployment  
+        steps:  
+          - task: UsePythonVersion@0  
+            inputs:  
+              versionSpec: '3.11'  
+              addToPath: true  
+            displayName: "Specify Python version"  
+    
+          - task: AzureWebAppContainer@1
+            displayName: 'Deploy Azure Web App : COT-Gradio-App'
+            inputs:
+              azureSubscription: $(azureSubscription)
+              appName: $(name)
+              resourceGroupName: $(resourceGroupName)
+              imageName: $(imageName)
