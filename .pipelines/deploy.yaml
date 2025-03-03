@@ -39,6 +39,24 @@ stages:
               addToPath: true  
             displayName: "Specify Python version"
           
+          # Download secure files
+          - task: DownloadSecureFile@1
+            name: appConfigFile
+            inputs:
+              secureFile: 'app_config.py'
+            displayName: 'Download app_config.py secure file'
+          
+          - task: DownloadSecureFile@1
+            name: gcpServiceFile
+            inputs:
+              secureFile: 'gcp_service_account.json'
+            displayName: 'Download gcp_service_account.json secure file'
+
+          - script: |
+              cp $(appConfigFile.secureFilePath) $(Build.SourcesDirectory)/app_config.py
+              cp $(gcpServiceFile.secureFilePath) $(Build.SourcesDirectory)/gcp_service_account.json
+            displayName: 'Copy secure files to source directory'
+
           - script: |
               echo "Building Docker image..."
               docker build -t $(imageName) .
