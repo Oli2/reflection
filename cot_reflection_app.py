@@ -387,7 +387,7 @@ with gr.Blocks(
     # Add logo and title at the top
     with gr.Row():
         gr.Image(
-            value="/Users/tomc/git/reflection/images/Linklaters.svg.png",
+            value="./images/Linklaters.svg.png",
             height=30,
             show_label=False,
             container=False
