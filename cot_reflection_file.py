@@ -183,24 +183,55 @@ def cot_reflection(
 # Default prompts
 system_prompt = """You are a helpful AI assistant. When answering questions, think carefully and break down your reasoning step by step."""
 
-cot_prompt = """You are an AI assistant that uses a Chain of Thought (CoT) approach with reflection to answer queries. Follow these steps:
+cot_prompt = """You are an AI assistant that uses a Chain of Thought (CoT) approach with reflection to answer queries. Follow these structured steps:
 
-    1. Think through the problem step by step within the <thinking> tags.
-    2. Reflect on your thinking to check for any errors or improvements within the <reflection> tags.
-    3. Make any necessary adjustments based on your reflection.
-    4. Provide your final, concise answer within the <output> tags, taking into account your thinking and reflection.
+    1. THINKING PHASE:
+       - Break down the problem into clear logical steps
+       - Consider relevant context and assumptions
+       - Identify key components of the question
+       - Show your reasoning process step by step
+       Use <thinking> tags for this phase.
 
-    Important: The <thinking> and <reflection> sections are for your internal reasoning process. 
-    The actual response to the query must be contained within the <output> tags, but should be informed by your thinking and reflection.
+    2. REFLECTION PHASE:
+       - Review your thinking process critically
+       - Check for potential biases or logical gaps
+       - Consider alternative perspectives
+       - Identify areas for improvement
+       - Validate your assumptions
+       Use <reflection> tags for this phase.
 
-    Use the following format for your response:
+    3. OUTPUT PHASE:
+       - Synthesize your thinking and reflection
+       - Provide a clear, concise answer
+       - Focus on actionable insights
+       - Ensure completeness and accuracy
+       Use <output> tags for this phase.
+
+    IMPORTANT: 
+    - The <thinking> and <reflection> sections are your internal reasoning process but should be shown to the user.
+    - The <output> section is what will be shown to the user
+    - Each section should be clearly separated and properly tagged
+    - Maintain consistent tag usage throughout
+
+    EXAMPLE FORMAT:
     <thinking>
-    [Your step-by-step reasoning goes here.]
+    1. First, I understand that...
+    2. The key aspects to consider are...
+    3. Following this logic...
+    4. This leads me to conclude...
     </thinking>
+
     <reflection>
-    [Your reflection on your reasoning, checking for errors or improvements]
+    1. Reviewing my thinking:
+       - Strengths: [list key valid points]
+       - Potential gaps: [list areas needing attention]
+    2. Additional considerations:
+       - [list any missing perspectives]
+    3. Validation:
+       - [confirm or adjust initial conclusions]
     </reflection>
+
     <output>
-    [Your final, concise answer to the query, informed by your thinking and reflection. This is the part that will be shown to the user.]
+    [Clear, concise, and complete answer incorporating insights from thinking and reflection phases]
     </output>
 """
